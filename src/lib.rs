@@ -2,24 +2,19 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-pub mod xpc_sys;
 pub mod message;
+pub mod xpc_sys;
 
-use std::{
-    ffi::CString,
-    boxed::Box,
-    os::raw::c_void,
-};
+use std::{boxed::Box, ffi::CString, os::raw::c_void};
 
 use self::{
-    xpc_sys::{
-        dispatch_queue_attr_s, dispatch_queue_create,
-        xpc_connection_t, xpc_connection_create_mach_service, XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
-        xpc_connection_set_event_handler, xpc_connection_resume,
-        xpc_object_t, xpc_retain,
-        xpc_connection_send_message, xpc_release,
-    },
     message::Message,
+    xpc_sys::{
+        dispatch_queue_attr_s, dispatch_queue_create, xpc_connection_create_mach_service,
+        xpc_connection_resume, xpc_connection_send_message, xpc_connection_set_event_handler,
+        xpc_connection_t, xpc_object_t, xpc_release, xpc_retain,
+        XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
+    },
 };
 
 pub struct XpcConnection<T: Fn(Message) -> () + Send> {
