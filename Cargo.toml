@@ -1,0 +1,11 @@
+[package]
+authors = ["Dylan Frankland <github@frankland.io>"]
+name = "xpc-connection-rs"
+version = "0.1.0"
+edition = "2018"
+
+[build-dependencies]
+bindgen = "0.40.0"
+
+[dependencies]
+core-foundation-sys = "0.6.1"
