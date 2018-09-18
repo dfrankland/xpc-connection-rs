@@ -1,6 +1,6 @@
 [package]
 authors = ["Dylan Frankland <github@frankland.io>"]
-name = "xpc-connection-rs"
+name = "xpc-connection"
 version = "0.1.0"
 edition = "2018"
 

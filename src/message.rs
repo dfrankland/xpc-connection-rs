@@ -75,6 +75,7 @@ pub fn xpc_object_to_xpctype(xpc_object: xpc_object_t) -> (XpcType, xpc_object_t
     panic!("Unknown `xpc` object type!")
 }
 
+#[derive(Debug)]
 pub enum Message {
     Int64(i64),
     String(String),
@@ -85,6 +86,7 @@ pub enum Message {
     Error(MessageError),
 }
 
+#[derive(Debug)]
 pub enum MessageError {
     ConnectionInterrupted,
     ConnectionInvalid,
