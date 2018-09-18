@@ -99,9 +99,8 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
         })),
         XpcType::Dictionary => {
             let mut dictionary = HashMap::new();
-            let mut cb: &mut FnMut(*const c_char, xpc_object_t) -> i8 = &mut move |key, value| {
-                // TODO: Add stuff to the dictionary
-                // dictionary.insert(cstring_to_string(key), xpc_object_to_message(value));
+            let mut cb: &mut FnMut(*const c_char, xpc_object_t) -> i8 = &mut |key, value| {
+                dictionary.insert(cstring_to_string(key), xpc_object_to_message(value));
                 1
             };
             let cb = &mut cb;
@@ -110,9 +109,8 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
         }
         XpcType::Array => {
             let mut array = vec![];
-            let mut cb: &mut FnMut(usize, xpc_object_t) -> i8 = &mut move |index, value| {
-                // TODO: Add stuff to the array
-                // array[index] = xpc_object_to_message(value);
+            let mut cb: &mut FnMut(usize, xpc_object_t) -> i8 = &mut |index, value| {
+                array[index] = xpc_object_to_message(value);
                 1
             };
             let cb = &mut cb;
