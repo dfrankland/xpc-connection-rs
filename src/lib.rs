@@ -9,10 +9,12 @@ use std::{
     boxed::Box,
     ffi::CString,
     os::raw::c_void,
-    thread,
 };
 
-use crossbeam_deque::{fifo, Steal};
+use crossbeam::{
+    deque::fifo,
+    thread,
+};
 
 use self::{
     message::{Message, xpc_object_to_message, message_to_xpc_object},
@@ -37,15 +39,17 @@ impl XpcConnection {
         }
     }
 
-    pub fn setup<T: 'static + Fn(Message) + Send>(self: &mut Self, callback: T) {
+    pub fn setup<T: FnMut(Message) + Send + Sync>(self: &mut Self, callback: &mut T) {
         // Setup a worker to asynchronously check for messages
         let (w, s) = fifo();
-        thread::spawn(move || {
-            loop {
-                if let Steal::Data(message) = s.steal() {
-                    callback(message);
+        thread::scope(|scope| {
+            scope.spawn(|| {
+                loop {
+                    if let Some(message) = s.steal() {
+                        callback(message);
+                    }
                 }
-            }
+            })
         });
 
         // Start a connection
