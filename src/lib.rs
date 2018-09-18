@@ -15,7 +15,7 @@ use std::{
 use crossbeam_deque::{fifo, Steal};
 
 use self::{
-    message::{Message, xpc_object_to_message},
+    message::{Message, xpc_object_to_message, message_to_xpc_object},
     xpc_sys::{
         dispatch_queue_attr_s, dispatch_queue_create, xpc_connection_create_mach_service,
         xpc_connection_resume, xpc_connection_send_message, xpc_connection_set_event_handler,
@@ -74,10 +74,11 @@ impl XpcConnection {
         }
     }
 
-    pub fn send_message(self: &Self, message: xpc_object_t) {
+    pub fn send_message(self: &Self, message: Message) {
+        let xpc_object = message_to_xpc_object(message);
         unsafe {
-            xpc_connection_send_message(self.connection.unwrap(), message);
-            xpc_release(message);
+            xpc_connection_send_message(self.connection.unwrap(), xpc_object);
+            xpc_release(xpc_object);
         }
     }
 }
