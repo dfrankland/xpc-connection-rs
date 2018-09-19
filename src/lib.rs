@@ -23,6 +23,7 @@ use self::{
     },
 };
 
+#[derive(Debug)]
 pub struct XpcConnection {
     pub service_name: String,
     connection: Option<xpc_connection_t>,

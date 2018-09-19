@@ -17,6 +17,7 @@ use super::xpc_sys::{
     xpc_string_get_string_ptr, xpc_uuid_create, xpc_uuid_get_bytes,
 };
 
+#[derive(Debug)]
 pub enum XpcType {
     Activity,
     Array,
