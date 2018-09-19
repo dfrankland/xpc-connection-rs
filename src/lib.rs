@@ -6,9 +6,9 @@ pub mod message;
 pub mod xpc_sys;
 
 use std::{
-    boxed::Box,
     ffi::CString,
     os::raw::c_void,
+    ptr,
 };
 
 use crossbeam::{
@@ -19,7 +19,7 @@ use crossbeam::{
 use self::{
     message::{Message, xpc_object_to_message, message_to_xpc_object},
     xpc_sys::{
-        dispatch_queue_attr_s, dispatch_queue_create, xpc_connection_create_mach_service,
+        dispatch_queue_create, xpc_connection_create_mach_service,
         xpc_connection_resume, xpc_connection_send_message, xpc_connection_set_event_handler,
         xpc_connection_t, xpc_object_t, xpc_release,
         XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
@@ -53,14 +53,12 @@ impl XpcConnection {
         });
 
         // Start a connection
-        let label_name = CString::new(self.service_name.clone()).unwrap();
+        let service_name_cstring = CString::new(self.service_name.clone()).unwrap();
+        let label_name = service_name_cstring.as_ptr();
         let connection = unsafe {
             xpc_connection_create_mach_service(
-                label_name.as_ptr(),
-                dispatch_queue_create(
-                    label_name.as_ptr(),
-                    Box::into_raw(Box::new(dispatch_queue_attr_s { _address: 0 }))
-                ),
+                label_name,
+                dispatch_queue_create(label_name, ptr::null_mut() as *mut _),
                 u64::from(XPC_CONNECTION_MACH_SERVICE_PRIVILEGED),
             )
         };
