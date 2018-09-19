@@ -11,10 +11,7 @@ use std::{
     ptr,
 };
 
-use crossbeam::{
-    deque::fifo,
-    thread,
-};
+use crossbeam::deque::{fifo, Stealer};
 
 use self::{
     message::{Message, xpc_object_to_message, message_to_xpc_object},
@@ -39,18 +36,9 @@ impl XpcConnection {
         }
     }
 
-    pub fn setup<T: FnMut(Message) + Send + Sync>(self: &mut Self, callback: &mut T) {
-        // Setup a worker to asynchronously check for messages
+    pub fn setup(self: &mut Self) -> Stealer<Message> {
+        // Setup FIFO async deque
         let (w, s) = fifo();
-        thread::scope(|scope| {
-            scope.spawn(|| {
-                loop {
-                    if let Some(message) = s.steal() {
-                        callback(message);
-                    }
-                }
-            })
-        });
 
         // Start a connection
         let service_name_cstring = CString::new(self.service_name.clone()).unwrap();
@@ -74,6 +62,8 @@ impl XpcConnection {
             xpc_connection_set_event_handler(connection, event_handler as *mut _ as *mut c_void);
             xpc_connection_resume(connection);
         }
+
+        s
     }
 
     pub fn send_message(self: &Self, message: Message) {

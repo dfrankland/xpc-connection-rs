@@ -8,11 +8,8 @@ use xpc_connection::{XpcConnection, message::Message};
 #[test]
 fn it_connects_to_bleud() {
     let mut xpc_connection = XpcConnection::new("com.apple.blued");
-    let mut messages = vec![];
-    let mut callback = |message| {
-        messages.push(message);
-    };
-    xpc_connection.setup(&mut callback);
+
+    let s = xpc_connection.setup();
 
     let message = Message::Dictionary({
         let mut dictionary = HashMap::new();
@@ -33,5 +30,5 @@ fn it_connects_to_bleud() {
 
     thread::sleep(time::Duration::from_secs(5));
 
-    println!("{:?}", messages);
+    println!("{:?}", s.steal());
 }
