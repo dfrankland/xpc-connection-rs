@@ -3,23 +3,30 @@ use std::{
     thread,
     time,
 };
-use xpc_connection::{XpcConnection, message::Message};
+
+use crossbeam_deque::{fifo, Steal};
+
+use xpc_connection::{XpcConnection, Message};
 
 #[test]
 fn it_connects_to_bleud() {
-    let mut xpc_connection = XpcConnection::new("com.apple.blued");
+    let (w, s) = fifo();
 
-    let s = xpc_connection.setup();
+    let mut xpc_connection = XpcConnection::new("com.apple.blued\0");
+
+    xpc_connection.connect(move |message| {
+        w.push(message);
+    });
 
     let message = Message::Dictionary({
         let mut dictionary = HashMap::new();
-        dictionary.insert("kCBMsgId".to_string(), Message::Int64(1));
+        dictionary.insert("kCBMsgId\0".to_string(), Message::Int64(1));
         dictionary.insert(
-            "kCBMsgArgs".to_string(),
+            "kCBMsgArgs\0".to_string(),
             Message::Dictionary({
                 let mut temp = HashMap::new();
-                temp.insert("kCBMsgArgAlert".to_string(), Message::Int64(1));
-                temp.insert("kCBMsgArgName".to_string(), Message::String("rust".to_string()));
+                temp.insert("kCBMsgArgAlert\0".to_string(), Message::Int64(1));
+                temp.insert("kCBMsgArgName\0".to_string(), Message::String("rust\0".to_string()));
                 temp
             })
         );
@@ -30,5 +37,9 @@ fn it_connects_to_bleud() {
 
     thread::sleep(time::Duration::from_secs(5));
 
-    println!("{:?}", s.steal());
+    if let Steal::Data(data) = s.steal() {
+        println!("Got data! {:?}", data);
+    } else {
+        panic!("Data wasn't found!");
+    }
 }

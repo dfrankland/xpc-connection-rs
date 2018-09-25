@@ -8,4 +8,7 @@ edition = "2018"
 bindgen = "0.40.0"
 
 [dependencies]
-crossbeam = "0.4.1"
+block = "0.1.6"
+
+[dev-dependencies]
+crossbeam-deque = "0.6.1"
