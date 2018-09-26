@@ -1,8 +1,6 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
+#![feature(tool_lints)]
 
-#[allow(dead_code)]
+#[allow(dead_code, safe_packed_borrows, non_upper_case_globals, non_camel_case_types, non_snake_case, clippy::all)]
 mod xpc_sys {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
