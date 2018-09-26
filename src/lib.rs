@@ -1,24 +1,26 @@
 #![feature(tool_lints)]
 
-#[allow(dead_code, safe_packed_borrows, non_upper_case_globals, non_camel_case_types, non_snake_case, clippy::all)]
+#[allow(
+    dead_code,
+    safe_packed_borrows,
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case,
+    clippy::all
+)]
 mod xpc_sys {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 mod message;
 
-use std::{
-    ffi::CStr,
-    os::raw::c_void,
-    ptr,
-};
+use std::{ffi::CStr, os::raw::c_void, ptr};
 
 use block::{Block, ConcreteBlock};
 
 pub use self::message::*;
 use self::xpc_sys::{
-    dispatch_queue_create, xpc_connection_create_mach_service,
-    xpc_connection_resume, xpc_connection_send_message, xpc_connection_set_event_handler,
-    xpc_connection_t, xpc_release,
+    dispatch_queue_create, xpc_connection_create_mach_service, xpc_connection_resume,
+    xpc_connection_send_message, xpc_connection_set_event_handler, xpc_connection_t, xpc_release,
     XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
 };
 
@@ -39,7 +41,8 @@ impl XpcConnection {
     pub fn connect<T: Fn(Message) + 'static>(self: &mut Self, callback: T) {
         // Start a connection
         let connection = {
-            let service_name_cstring = CStr::from_bytes_with_nul(self.service_name.as_bytes()).unwrap();
+            let service_name_cstring =
+                CStr::from_bytes_with_nul(self.service_name.as_bytes()).unwrap();
             let label_name = service_name_cstring.as_ptr();
             unsafe {
                 xpc_connection_create_mach_service(

@@ -14,10 +14,10 @@ use super::xpc_sys::{
     _xpc_type_date, _xpc_type_dictionary, _xpc_type_double, _xpc_type_endpoint, _xpc_type_error,
     _xpc_type_fd, _xpc_type_int64, _xpc_type_null, _xpc_type_shmem, _xpc_type_string,
     _xpc_type_uint64, _xpc_type_uuid, uuid_t, xpc_array_append_value, xpc_array_apply,
-    xpc_array_create, xpc_array_get_count, xpc_data_create, xpc_data_get_bytes_ptr, xpc_data_get_length,
-    xpc_dictionary_apply, xpc_dictionary_get_count, xpc_dictionary_create, xpc_dictionary_set_value, xpc_get_type,
-    xpc_int64_create, xpc_int64_get_value, xpc_object_t, xpc_release, xpc_string_create,
-    xpc_string_get_string_ptr, xpc_uuid_create, xpc_uuid_get_bytes,
+    xpc_array_create, xpc_array_get_count, xpc_data_create, xpc_data_get_bytes_ptr,
+    xpc_data_get_length, xpc_dictionary_apply, xpc_dictionary_create, xpc_dictionary_get_count,
+    xpc_dictionary_set_value, xpc_get_type, xpc_int64_create, xpc_int64_get_value, xpc_object_t,
+    xpc_release, xpc_string_create, xpc_string_get_string_ptr, xpc_uuid_create, xpc_uuid_get_bytes,
 };
 
 #[derive(Debug, Clone)]
@@ -106,7 +106,9 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
         XpcType::Dictionary => {
             let (sender, receiver) = channel();
             let mut rc_block = ConcreteBlock::new(move |key, value| {
-                sender.send((cstring_to_string(key), xpc_object_to_message(value))).unwrap();
+                sender
+                    .send((cstring_to_string(key), xpc_object_to_message(value)))
+                    .unwrap();
                 1
             });
             let block = &mut *rc_block;
@@ -209,5 +211,8 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
 }
 
 fn cstring_to_string(cstring: *const c_char) -> String {
-    unsafe { CStr::from_ptr(cstring) }.to_str().unwrap().to_owned()
+    unsafe { CStr::from_ptr(cstring) }
+        .to_str()
+        .unwrap()
+        .to_owned()
 }

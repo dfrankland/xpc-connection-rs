@@ -1,12 +1,8 @@
-use std::{
-    collections::HashMap,
-    thread,
-    time,
-};
+use std::{collections::HashMap, thread, time};
 
 use crossbeam_deque::{fifo, Steal};
 
-use xpc_connection::{XpcConnection, Message};
+use xpc_connection::{Message, XpcConnection};
 
 #[test]
 fn it_connects_to_bleud() {
@@ -26,9 +22,12 @@ fn it_connects_to_bleud() {
             Message::Dictionary({
                 let mut temp = HashMap::new();
                 temp.insert("kCBMsgArgAlert\0".to_string(), Message::Int64(1));
-                temp.insert("kCBMsgArgName\0".to_string(), Message::String("rust\0".to_string()));
+                temp.insert(
+                    "kCBMsgArgName\0".to_string(),
+                    Message::String("rust\0".to_string()),
+                );
                 temp
-            })
+            }),
         );
         dictionary
     });
