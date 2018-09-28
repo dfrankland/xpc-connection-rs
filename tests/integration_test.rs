@@ -1,17 +1,19 @@
-use std::{collections::HashMap, thread, time};
+use std::collections::HashMap;
 
-use crossbeam_deque::{fifo, Steal};
+use futures::{prelude::*, channel::mpsc::unbounded as unbounded_channel, executor::block_on_stream};
 
 use xpc_connection::{Message, XpcConnection};
 
 #[test]
 fn it_connects_to_bleud() {
-    let (w, s) = fifo();
+    let (unbounded_sender, unbounded_receiver) = unbounded_channel();
+
+    let unbounded_sender_ref = unbounded_sender.clone();
 
     let mut xpc_connection = XpcConnection::new("com.apple.blued\0");
 
     xpc_connection.connect(move |message| {
-        w.push(message);
+        unbounded_sender_ref.unbounded_send(message).unwrap();
     });
 
     let message = Message::Dictionary({
@@ -34,11 +36,5 @@ fn it_connects_to_bleud() {
 
     xpc_connection.send_message(message);
 
-    thread::sleep(time::Duration::from_secs(5));
-
-    if let Steal::Data(data) = s.steal() {
-        println!("Got data! {:?}", data);
-    } else {
-        panic!("Data wasn't found!");
-    }
+    println!("Got data! {:?}", block_on_stream(unbounded_receiver.take(1)).next().unwrap());
 }

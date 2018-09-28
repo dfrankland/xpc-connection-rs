@@ -15,6 +15,4 @@ bindgen = "0.40.0"
 
 [dependencies]
 block = "0.1.6"
-
-[dev-dependencies]
-crossbeam-deque = "0.6.1"
+futures-preview = "0.2.2"
