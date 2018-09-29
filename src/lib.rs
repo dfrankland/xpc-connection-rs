@@ -17,6 +17,8 @@ use std::{ffi::CStr, os::raw::c_void, ptr};
 
 use block::{Block, ConcreteBlock};
 
+use futures::channel::mpsc::{unbounded as unbounded_channel, UnboundedReceiver, UnboundedSender};
+
 pub use self::message::*;
 use self::xpc_sys::{
     dispatch_queue_create, xpc_connection_create_mach_service, xpc_connection_resume,
@@ -28,6 +30,7 @@ use self::xpc_sys::{
 pub struct XpcConnection {
     pub service_name: String,
     connection: Option<xpc_connection_t>,
+    unbounded_sender: Option<UnboundedSender<Message>>,
 }
 
 impl XpcConnection {
@@ -35,10 +38,11 @@ impl XpcConnection {
         XpcConnection {
             service_name: service_name.to_owned(),
             connection: None,
+            unbounded_sender: None,
         }
     }
 
-    pub fn connect<T: Fn(Message) + 'static>(self: &mut Self, callback: T) {
+    pub fn connect(self: &mut Self) -> UnboundedReceiver<Message> {
         // Start a connection
         let connection = {
             let service_name_cstring =
@@ -54,15 +58,27 @@ impl XpcConnection {
         };
         self.connection = Some(connection);
 
+        // Create channel to send messages from bindings
+        let (unbounded_sender, unbounded_receiver) = unbounded_channel();
+        let unbounded_sender_clone = unbounded_sender.clone();
+
+        // Keep the sender so that the channel remains open
+        self.unbounded_sender = Some(unbounded_sender);
+
         // Handle messages received
         let mut rc_block = ConcreteBlock::new(move |event| {
-            callback(xpc_object_to_message(event));
+            unbounded_sender_clone
+                .unbounded_send(xpc_object_to_message(event))
+                .unwrap();
         });
         let block = &mut *rc_block;
         unsafe {
             xpc_connection_set_event_handler(connection, block as *mut Block<_, _> as *mut c_void);
             xpc_connection_resume(connection);
         }
+
+        // Give back a stream of messages sent
+        unbounded_receiver
     }
 
     pub fn send_message(self: &Self, message: Message) {

@@ -1,18 +1,14 @@
-use std::{collections::HashMap, thread, time};
+use std::collections::HashMap;
 
-use crossbeam_deque::{fifo, Steal};
+use futures::{executor::block_on_stream, prelude::*};
 
 use xpc_connection::{Message, XpcConnection};
 
 #[test]
 fn it_connects_to_bleud() {
-    let (w, s) = fifo();
-
     let mut xpc_connection = XpcConnection::new("com.apple.blued\0");
 
-    xpc_connection.connect(move |message| {
-        w.push(message);
-    });
+    let mut blocking_stream = block_on_stream(xpc_connection.connect().take(2));
 
     let message = Message::Dictionary({
         let mut dictionary = HashMap::new();
@@ -32,13 +28,12 @@ fn it_connects_to_bleud() {
         dictionary
     });
 
-    xpc_connection.send_message(message);
+    // Can get data while the channel is open
+    xpc_connection.send_message(message.clone());
+    println!("Got data! {:?}", blocking_stream.next().unwrap());
 
-    thread::sleep(time::Duration::from_secs(5));
-
-    if let Steal::Data(data) = s.steal() {
-        println!("Got data! {:?}", data);
-    } else {
-        panic!("Data wasn't found!");
-    }
+    // Can't get data when the channel is closed by dropping `xpc_connection`
+    xpc_connection.send_message(message.clone());
+    drop(xpc_connection);
+    assert!(blocking_stream.next().is_none());
 }
