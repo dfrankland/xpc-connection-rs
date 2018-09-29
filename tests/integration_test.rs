@@ -1,20 +1,14 @@
 use std::collections::HashMap;
 
-use futures::{prelude::*, channel::mpsc::unbounded as unbounded_channel, executor::block_on_stream};
+use futures::{prelude::*, executor::block_on_stream};
 
 use xpc_connection::{Message, XpcConnection};
 
 #[test]
 fn it_connects_to_bleud() {
-    let (unbounded_sender, unbounded_receiver) = unbounded_channel();
-
-    let unbounded_sender_ref = unbounded_sender.clone();
-
     let mut xpc_connection = XpcConnection::new("com.apple.blued\0");
 
-    xpc_connection.connect(move |message| {
-        unbounded_sender_ref.unbounded_send(message).unwrap();
-    });
+    let stream = xpc_connection.connect();
 
     let message = Message::Dictionary({
         let mut dictionary = HashMap::new();
@@ -36,5 +30,5 @@ fn it_connects_to_bleud() {
 
     xpc_connection.send_message(message);
 
-    println!("Got data! {:?}", block_on_stream(unbounded_receiver.take(1)).next().unwrap());
+    println!("Got data! {:?}", block_on_stream(stream.take(1)).next().unwrap());
 }

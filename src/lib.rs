@@ -13,9 +13,11 @@ mod xpc_sys {
 }
 mod message;
 
-use std::{ffi::CStr, os::raw::c_void, ptr};
+use std::{ffi::CStr, os::raw::c_void, ptr, mem, boxed::Box};
 
 use block::{Block, ConcreteBlock};
+
+use futures::channel::mpsc::{UnboundedSender, UnboundedReceiver, unbounded as unbounded_channel};
 
 pub use self::message::*;
 use self::xpc_sys::{
@@ -28,6 +30,7 @@ use self::xpc_sys::{
 pub struct XpcConnection {
     pub service_name: String,
     connection: Option<xpc_connection_t>,
+    unbounded_sender: Option<*mut UnboundedSender<Message>>,
 }
 
 impl XpcConnection {
@@ -35,10 +38,11 @@ impl XpcConnection {
         XpcConnection {
             service_name: service_name.to_owned(),
             connection: None,
+            unbounded_sender: None,
         }
     }
 
-    pub fn connect<T: Fn(Message) + 'static>(self: &mut Self, callback: T) {
+    pub fn connect(self: &mut Self) -> UnboundedReceiver<Message> {
         // Start a connection
         let connection = {
             let service_name_cstring =
@@ -54,15 +58,27 @@ impl XpcConnection {
         };
         self.connection = Some(connection);
 
+        // Create channel to send messages from bindings
+        let (unbounded_sender, unbounded_receiver) = unbounded_channel();
+        let unbounded_sender_clone = unbounded_sender.clone();
+
+        // Forget the sender so that the channel remains open
+        let raw_unbounded_sender = Box::into_raw(Box::new(unbounded_sender));
+        self.unbounded_sender = Some(raw_unbounded_sender);
+        mem::forget(raw_unbounded_sender);
+
         // Handle messages received
         let mut rc_block = ConcreteBlock::new(move |event| {
-            callback(xpc_object_to_message(event));
+            unbounded_sender_clone.unbounded_send(xpc_object_to_message(event)).unwrap();
         });
         let block = &mut *rc_block;
         unsafe {
             xpc_connection_set_event_handler(connection, block as *mut Block<_, _> as *mut c_void);
             xpc_connection_resume(connection);
         }
+
+        // Give back a stream of messages sent
+        unbounded_receiver
     }
 
     pub fn send_message(self: &Self, message: Message) {
@@ -70,6 +86,16 @@ impl XpcConnection {
         unsafe {
             xpc_connection_send_message(self.connection.unwrap(), xpc_object);
             xpc_release(xpc_object);
+        }
+    }
+}
+
+impl Drop for XpcConnection {
+    fn drop(&mut self) {
+        if let Some(unbounded_sender) = self.unbounded_sender {
+            unsafe {
+                drop(Box::from_raw(unbounded_sender))
+            }
         }
     }
 }
