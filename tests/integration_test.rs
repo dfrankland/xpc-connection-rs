@@ -8,7 +8,7 @@ use xpc_connection::{Message, XpcConnection};
 fn it_connects_to_bleud() {
     let mut xpc_connection = XpcConnection::new("com.apple.blued\0");
 
-    let stream = xpc_connection.connect();
+    let mut blocking_stream = block_on_stream(xpc_connection.connect().take(2));
 
     let message = Message::Dictionary({
         let mut dictionary = HashMap::new();
@@ -28,10 +28,12 @@ fn it_connects_to_bleud() {
         dictionary
     });
 
-    xpc_connection.send_message(message);
+    // Can get data while the channel is open
+    xpc_connection.send_message(message.clone());
+    println!("Got data! {:?}", blocking_stream.next().unwrap());
 
-    println!(
-        "Got data! {:?}",
-        block_on_stream(stream.take(1)).next().unwrap()
-    );
+    // Can't get data when the channel is closed by dropping `xpc_connection`
+    xpc_connection.send_message(message.clone());
+    drop(xpc_connection);
+    assert!(blocking_stream.next().is_none());
 }
