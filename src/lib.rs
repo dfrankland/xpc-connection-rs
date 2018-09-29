@@ -13,11 +13,11 @@ mod xpc_sys {
 }
 mod message;
 
-use std::{ffi::CStr, os::raw::c_void, ptr, mem, boxed::Box};
+use std::{boxed::Box, ffi::CStr, mem, os::raw::c_void, ptr};
 
 use block::{Block, ConcreteBlock};
 
-use futures::channel::mpsc::{UnboundedSender, UnboundedReceiver, unbounded as unbounded_channel};
+use futures::channel::mpsc::{unbounded as unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 pub use self::message::*;
 use self::xpc_sys::{
@@ -69,7 +69,9 @@ impl XpcConnection {
 
         // Handle messages received
         let mut rc_block = ConcreteBlock::new(move |event| {
-            unbounded_sender_clone.unbounded_send(xpc_object_to_message(event)).unwrap();
+            unbounded_sender_clone
+                .unbounded_send(xpc_object_to_message(event))
+                .unwrap();
         });
         let block = &mut *rc_block;
         unsafe {
@@ -93,9 +95,7 @@ impl XpcConnection {
 impl Drop for XpcConnection {
     fn drop(&mut self) {
         if let Some(unbounded_sender) = self.unbounded_sender {
-            unsafe {
-                drop(Box::from_raw(unbounded_sender))
-            }
+            unsafe { drop(Box::from_raw(unbounded_sender)) }
         }
     }
 }

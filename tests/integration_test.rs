@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use futures::{prelude::*, executor::block_on_stream};
+use futures::{executor::block_on_stream, prelude::*};
 
 use xpc_connection::{Message, XpcConnection};
 
@@ -30,5 +30,8 @@ fn it_connects_to_bleud() {
 
     xpc_connection.send_message(message);
 
-    println!("Got data! {:?}", block_on_stream(stream.take(1)).next().unwrap());
+    println!(
+        "Got data! {:?}",
+        block_on_stream(stream.take(1)).next().unwrap()
+    );
 }
