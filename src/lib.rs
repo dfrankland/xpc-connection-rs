@@ -13,7 +13,7 @@ mod xpc_sys {
 }
 mod message;
 
-use std::{boxed::Box, ffi::CStr, mem, os::raw::c_void, ptr};
+use std::{ffi::CStr, os::raw::c_void, ptr};
 
 use block::{Block, ConcreteBlock};
 
@@ -30,7 +30,7 @@ use self::xpc_sys::{
 pub struct XpcConnection {
     pub service_name: String,
     connection: Option<xpc_connection_t>,
-    unbounded_sender: Option<*mut UnboundedSender<Message>>,
+    unbounded_sender: Option<UnboundedSender<Message>>,
 }
 
 impl XpcConnection {
@@ -62,10 +62,8 @@ impl XpcConnection {
         let (unbounded_sender, unbounded_receiver) = unbounded_channel();
         let unbounded_sender_clone = unbounded_sender.clone();
 
-        // Forget the sender so that the channel remains open
-        let raw_unbounded_sender = Box::into_raw(Box::new(unbounded_sender));
-        self.unbounded_sender = Some(raw_unbounded_sender);
-        mem::forget(raw_unbounded_sender);
+        // Keep the sender so that the channel remains open
+        self.unbounded_sender = Some(unbounded_sender);
 
         // Handle messages received
         let mut rc_block = ConcreteBlock::new(move |event| {
@@ -88,14 +86,6 @@ impl XpcConnection {
         unsafe {
             xpc_connection_send_message(self.connection.unwrap(), xpc_object);
             xpc_release(xpc_object);
-        }
-    }
-}
-
-impl Drop for XpcConnection {
-    fn drop(&mut self) {
-        if let Some(unbounded_sender) = self.unbounded_sender {
-            unsafe { drop(Box::from_raw(unbounded_sender)) }
         }
     }
 }
