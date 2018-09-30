@@ -69,7 +69,7 @@ impl XpcConnection {
         let mut rc_block = ConcreteBlock::new(move |event| {
             unbounded_sender_clone
                 .unbounded_send(xpc_object_to_message(event))
-                .unwrap();
+                .ok();
         });
         let block = &mut *rc_block;
         unsafe {
