@@ -1,5 +1,3 @@
-#![feature(tool_lints)]
-
 #[allow(
     dead_code,
     safe_packed_borrows,
