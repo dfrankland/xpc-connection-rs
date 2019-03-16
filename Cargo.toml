@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "xpc-connection-sys",
+    "xpc-connection"
+]
