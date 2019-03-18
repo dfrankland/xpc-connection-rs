@@ -10,9 +10,7 @@ repository = "https://github.com/dfrankland/xpc-connection-rs"
 keywords = ["xpc", "mac", "macOS"]
 categories = ["os", "api-bindings", "concurrency", "encoding"]
 
-[build-dependencies]
-bindgen = "0.40.0"
-
 [dependencies]
 block = "0.1.6"
 futures-preview = "0.2.2"
+xpc-connection-sys = { path="../xpc-connection-sys" }
