@@ -9,7 +9,7 @@ use std::{
 
 use block::{Block, ConcreteBlock};
 
-use super::xpc_sys::{
+use xpc_connection_sys::{
     _xpc_type_activity, _xpc_type_array, _xpc_type_bool, _xpc_type_connection, _xpc_type_data,
     _xpc_type_date, _xpc_type_dictionary, _xpc_type_double, _xpc_type_endpoint, _xpc_type_error,
     _xpc_type_fd, _xpc_type_int64, _xpc_type_null, _xpc_type_shmem, _xpc_type_string,

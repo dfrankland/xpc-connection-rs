@@ -6,9 +6,8 @@
     non_snake_case,
     clippy::all
 )]
-mod xpc_sys {
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-}
+extern crate xpc_connection_sys;
+
 mod message;
 
 use std::{ffi::CStr, os::raw::c_void, ptr};
@@ -18,7 +17,7 @@ use block::{Block, ConcreteBlock};
 use futures::channel::mpsc::{unbounded as unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 pub use self::message::*;
-use self::xpc_sys::{
+use xpc_connection_sys::{
     dispatch_queue_create, xpc_connection_create_mach_service, xpc_connection_resume,
     xpc_connection_send_message, xpc_connection_set_event_handler, xpc_connection_t, xpc_release,
     XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,

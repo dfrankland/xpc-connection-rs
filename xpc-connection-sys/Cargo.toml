@@ -1,0 +1,16 @@
+[package]
+authors = ["Dylan Frankland <github@frankland.io>"]
+name = "xpc-connection-sys"
+version = "0.2.1"
+edition = "2018"
+license = "MIT"
+description = "XPC connection bindings for Rust"
+homepage = "https://github.com/dfrankland/xpc-connection-rs"
+repository = "https://github.com/dfrankland/xpc-connection-rs"
+keywords = ["xpc", "mac", "macOS"]
+categories = ["os", "api-bindings", "concurrency", "encoding"]
+
+[build-dependencies]
+bindgen = "0.48"
+
+[dependencies]
