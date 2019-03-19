@@ -13,4 +13,4 @@ categories = ["os", "api-bindings", "concurrency", "encoding"]
 [dependencies]
 block = "0.1.6"
 futures-preview = "0.2.2"
-xpc-connection-sys = { path="../xpc-connection-sys" }
+xpc-connection-sys = { path="../xpc-connection-sys", version="0.1.0" }
