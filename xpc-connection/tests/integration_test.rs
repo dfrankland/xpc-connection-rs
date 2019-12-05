@@ -33,7 +33,7 @@ fn it_connects_to_bleud() {
     println!("Got data! {:?}", blocking_stream.next().unwrap());
 
     // Can't get data when the channel is closed by dropping `xpc_connection`
-    xpc_connection.send_message(message.clone());
+    xpc_connection.send_message(message);
     drop(xpc_connection);
     assert!(blocking_stream.next().is_none());
 }
