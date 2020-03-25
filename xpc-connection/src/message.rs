@@ -207,7 +207,9 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
             }
             array
         }
-        Message::Data(value) => unsafe { xpc_data_create(value.as_ptr() as *const _, value.len() as u64) },
+        Message::Data(value) => unsafe {
+            xpc_data_create(value.as_ptr() as *const _, value.len() as u64)
+        },
         Message::Uuid(value) => unsafe {
             let cstr = CStr::from_bytes_with_nul(&value).unwrap();
             let cstr_ptr = cstr.as_ptr();
