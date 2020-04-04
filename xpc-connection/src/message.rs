@@ -79,6 +79,13 @@ pub fn xpc_object_to_xpctype(xpc_object: xpc_object_t) -> (XpcType, xpc_object_t
     panic!("Unknown `xpc` object type!")
 }
 
+unsafe fn copy_raw_to_vec(ptr: *const u8, length: usize) -> Vec<u8> {
+    let mut vec = Vec::with_capacity(length);
+    vec.set_len(length);
+    std::ptr::copy_nonoverlapping(ptr, vec.as_mut_ptr(), length);
+    vec
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Int64(i64),
@@ -141,13 +148,13 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
         }
         XpcType::Data => unsafe {
             let ptr = xpc_data_get_bytes_ptr(xpc_object) as *mut u8;
-            let length = xpc_data_get_length(xpc_object);
-            Message::Data(Vec::from_raw_parts(ptr, length, length))
+            let length = xpc_data_get_length(xpc_object) as usize;
+            Message::Data(copy_raw_to_vec(ptr, length))
         },
         XpcType::Uuid => unsafe {
             let ptr = xpc_uuid_get_bytes(xpc_object) as *mut u8;
             let length = mem::size_of::<uuid_t>();
-            Message::Uuid(Vec::from_raw_parts(ptr, length, length))
+            Message::Uuid(copy_raw_to_vec(ptr, length))
         },
         XpcType::Error => {
             // TODO: Figure out how to return more specific error messages...
@@ -200,7 +207,9 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
             }
             array
         }
-        Message::Data(value) => unsafe { xpc_data_create(value.as_ptr() as *const _, value.len()) },
+        Message::Data(value) => unsafe {
+            xpc_data_create(value.as_ptr() as *const _, value.len() as u64)
+        },
         Message::Uuid(value) => unsafe {
             let cstr = CStr::from_bytes_with_nul(&value).unwrap();
             let cstr_ptr = cstr.as_ptr();
