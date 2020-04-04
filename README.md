@@ -1,5 +1,13 @@
 # xpc-connection-rs
 
+[![shield]][crate]
+[![sys shield]][sys crate]
+
+[crate]: https://crates.io/crates/xpc-connection
+[shield]: https://img.shields.io/crates/v/xpc-connection?label=xpc-connection
+[sys crate]: https://crates.io/crates/xpc-connection-sys
+[sys shield]: https://img.shields.io/crates/v/xpc-connection-sys?label=xpc-connection-sys
+
 XPC connection bindings for Rust.
 
 ## What is XPC?
