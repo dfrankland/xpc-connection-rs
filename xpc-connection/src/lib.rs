@@ -10,9 +10,9 @@ extern crate xpc_connection_sys;
 
 mod message;
 
-use std::{ffi::CStr, os::raw::c_void, ptr};
+use std::{ffi::CStr, ops::Deref, ptr};
 
-use block::{Block, ConcreteBlock};
+use block::ConcreteBlock;
 
 use futures::channel::mpsc::{unbounded as unbounded_channel, UnboundedReceiver, UnboundedSender};
 
@@ -63,14 +63,19 @@ impl XpcConnection {
         self.unbounded_sender = Some(unbounded_sender);
 
         // Handle messages received
-        let mut rc_block = ConcreteBlock::new(move |event| {
+        let block = ConcreteBlock::new(move |event| {
             unbounded_sender_clone
                 .unbounded_send(xpc_object_to_message(event))
                 .ok();
         });
-        let block = &mut *rc_block;
+
+        // We must move it from the stack to the heap so that when the libxpc
+        // reference count is released we don't double free. This limitation is
+        // explained in the blocks crate.
+        let block = block.copy();
+
         unsafe {
-            xpc_connection_set_event_handler(connection, block as *mut Block<_, _> as *mut c_void);
+            xpc_connection_set_event_handler(connection, block.deref() as *const _ as *mut _);
             xpc_connection_resume(connection);
         }
 
