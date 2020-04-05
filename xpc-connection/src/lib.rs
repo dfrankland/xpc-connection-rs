@@ -96,6 +96,7 @@ impl XpcConnection {
 mod tests {
     use super::*;
     use futures::executor::block_on_stream;
+    use std::collections::HashMap;
     use xpc_connection_sys::xpc_connection_cancel;
 
     // This also tests that the event handler block is only freed once, as a
@@ -116,5 +117,61 @@ mod tests {
             Message::Error(_) => {}
             _ => panic!("Expected a Message::Error"),
         }
+    }
+
+    #[test]
+    fn stream_closed_on_drop() {
+        let mut con = XpcConnection::new("com.apple.blued\0");
+        let mut blocking_stream = block_on_stream(con.connect());
+
+        let message = Message::Dictionary({
+            let mut dictionary = HashMap::new();
+            dictionary.insert("kCBMsgId\0".to_string(), Message::Int64(1));
+            dictionary.insert(
+                "kCBMsgArgs\0".to_string(),
+                Message::Dictionary({
+                    let mut temp = HashMap::new();
+                    temp.insert("kCBMsgArgAlert\0".to_string(), Message::Int64(1));
+                    temp.insert(
+                        "kCBMsgArgName\0".to_string(),
+                        Message::String("rust\0".to_string()),
+                    );
+                    temp
+                }),
+            );
+            dictionary
+        });
+
+        // Can get data while the channel is open
+        con.send_message(message);
+
+        let mut count = 0;
+
+        loop {
+            match blocking_stream.next() {
+                Some(Message::Error(error)) => {
+                    println!("{:?}", error);
+                    break;
+                }
+                Some(message) => {
+                    println!("Received error: {:?}", message);
+                    count += 1;
+
+                    // Explained in `event_handler_receives_error_on_close`.
+                    unsafe {
+                        xpc_connection_cancel(con.connection.unwrap());
+                    }
+                }
+                None => panic!("We should have received a message."),
+            }
+
+            // We can't be sure how many buffered messages we'll receive from
+            // blued before the connection is cancelled, but it's safe to say
+            // it should be less than 5.
+            assert!(count < 5);
+        }
+
+        drop(con);
+        assert!(blocking_stream.next().is_none());
     }
 }
