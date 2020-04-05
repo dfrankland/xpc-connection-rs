@@ -86,3 +86,30 @@ impl XpcConnection {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::executor::block_on_stream;
+    use xpc_connection_sys::xpc_connection_cancel;
+
+    // This also tests that the event handler block is only freed once, as a
+    // double free is possible if the block isn't copied on to the heap.
+    #[test]
+    fn event_handler_receives_error_on_close() {
+        let mut con = XpcConnection::new("com.apple.blued\0");
+        let mut blocking_stream = block_on_stream(con.connect());
+
+        // Cancelling the connection will cause the event handler to be called
+        // with an error message. This will happen under normal circumstances,
+        // for example if the service invalidates the connection.
+        unsafe {
+            xpc_connection_cancel(con.connection.unwrap());
+        }
+
+        match blocking_stream.next().unwrap() {
+            Message::Error(_) => {}
+            _ => panic!("Expected a Message::Error"),
+        }
+    }
+}
