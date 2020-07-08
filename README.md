@@ -32,7 +32,6 @@ serialized property lists for Mac OS. Read more at the
 
 *   `activity`
 *   `bool`
-*   `connection`
 *   `date`
 *   `double`
 *   `endpoint`

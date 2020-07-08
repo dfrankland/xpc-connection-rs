@@ -25,10 +25,14 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
+      - name: Build and run the echo server
+        run: cd examples/echo-server && make && sudo make install
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: -- --ignored
 
   lints:
     name: Lints

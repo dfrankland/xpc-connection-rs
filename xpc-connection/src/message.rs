@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
-    ffi::CStr,
+    ffi::{CStr, CString},
     mem,
-    os::raw::{c_char, c_void},
+    os::raw::c_void,
     ptr,
     sync::mpsc::channel,
 };
@@ -10,15 +10,18 @@ use std::{
 use block::{Block, ConcreteBlock};
 
 use xpc_connection_sys::{
-    _xpc_type_activity, _xpc_type_array, _xpc_type_bool, _xpc_type_connection, _xpc_type_data,
-    _xpc_type_date, _xpc_type_dictionary, _xpc_type_double, _xpc_type_endpoint, _xpc_type_error,
-    _xpc_type_fd, _xpc_type_int64, _xpc_type_null, _xpc_type_shmem, _xpc_type_string,
-    _xpc_type_uint64, _xpc_type_uuid, uuid_t, xpc_array_append_value, xpc_array_apply,
-    xpc_array_create, xpc_array_get_count, xpc_data_create, xpc_data_get_bytes_ptr,
-    xpc_data_get_length, xpc_dictionary_apply, xpc_dictionary_create, xpc_dictionary_get_count,
+    _xpc_error_connection_interrupted, _xpc_type_activity, _xpc_type_array, _xpc_type_bool,
+    _xpc_type_connection, _xpc_type_data, _xpc_type_date, _xpc_type_dictionary, _xpc_type_double,
+    _xpc_type_endpoint, _xpc_type_error, _xpc_type_fd, _xpc_type_int64, _xpc_type_null,
+    _xpc_type_shmem, _xpc_type_string, _xpc_type_uint64, _xpc_type_uuid, uuid_t,
+    xpc_array_append_value, xpc_array_apply, xpc_array_create, xpc_array_get_count,
+    xpc_connection_t, xpc_data_create, xpc_data_get_bytes_ptr, xpc_data_get_length,
+    xpc_dictionary_apply, xpc_dictionary_create, xpc_dictionary_get_count,
     xpc_dictionary_set_value, xpc_get_type, xpc_int64_create, xpc_int64_get_value, xpc_object_t,
     xpc_release, xpc_string_create, xpc_string_get_string_ptr, xpc_uuid_create, xpc_uuid_get_bytes,
 };
+
+use crate::{XpcClient, XpcListener};
 
 #[derive(Debug, Clone)]
 pub enum XpcType {
@@ -86,11 +89,13 @@ unsafe fn copy_raw_to_vec(ptr: *const u8, length: usize) -> Vec<u8> {
     vec
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Message {
+    Client(XpcClient),
+    Listener(XpcListener),
     Int64(i64),
-    String(String),
-    Dictionary(HashMap<String, Message>),
+    String(CString),
+    Dictionary(HashMap<CString, Message>),
     Array(Vec<Message>),
     Data(Vec<u8>),
     Uuid(Vec<u8>),
@@ -99,22 +104,32 @@ pub enum Message {
 
 #[derive(Debug, Clone)]
 pub enum MessageError {
+    /// The connection was interrupted, but is still usable. Clients should
+    /// send their previous message again.
     ConnectionInterrupted,
+    /// The connection was closed and cannot be recovered.
     ConnectionInvalid,
-    Unknown,
 }
 
 pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
     match xpc_object_to_xpctype(xpc_object).0 {
+        XpcType::Connection => {
+            let connection = xpc_object as xpc_connection_t;
+            let xpc_connection = XpcClient::from_raw(connection);
+            Message::Client(xpc_connection)
+        }
         XpcType::Int64 => Message::Int64(unsafe { xpc_int64_get_value(xpc_object) }),
-        XpcType::String => Message::String(cstring_to_string(unsafe {
-            xpc_string_get_string_ptr(xpc_object)
-        })),
+        XpcType::String => Message::String(
+            unsafe { CStr::from_ptr(xpc_string_get_string_ptr(xpc_object)) }.to_owned(),
+        ),
         XpcType::Dictionary => {
             let (sender, receiver) = channel();
             let mut rc_block = ConcreteBlock::new(move |key, value| {
                 sender
-                    .send((cstring_to_string(key), xpc_object_to_message(value)))
+                    .send((
+                        unsafe { CStr::from_ptr(key) }.to_owned(),
+                        xpc_object_to_message(value),
+                    ))
                     .unwrap();
                 1
             });
@@ -131,17 +146,19 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
         }
         XpcType::Array => {
             let (sender, receiver) = channel();
-            let mut rc_block = ConcreteBlock::new(move |index: usize, value| {
-                sender.send((index, xpc_object_to_message(value))).unwrap();
+            let mut rc_block = ConcreteBlock::new(move |_index: usize, value| {
+                sender.send(xpc_object_to_message(value)).unwrap();
                 1
             });
             let block = &mut *rc_block;
             unsafe { xpc_array_apply(xpc_object, block as *mut Block<_, _> as *mut c_void) };
 
-            let mut array = vec![];
-            for _ in 0..unsafe { xpc_array_get_count(xpc_object) } {
-                let (index, value) = receiver.recv().unwrap();
-                array[index] = value;
+            let len = unsafe { xpc_array_get_count(xpc_object) } as usize;
+            let mut array = Vec::with_capacity(len);
+
+            for _ in 0..len {
+                let value = receiver.recv().unwrap();
+                array.push(value);
             }
 
             Message::Array(array)
@@ -156,41 +173,34 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
             let length = mem::size_of::<uuid_t>();
             Message::Uuid(copy_raw_to_vec(ptr, length))
         },
-        XpcType::Error => {
-            // TODO: Figure out how to return more specific error messages...
-            //
-            // if xpc_object == _xpc_error_connection_interrupted {
-            //     return Message::Error(MessageError::ConnectionInterrupted);
-            // }
-            //
-            // if xpc_object == _xpc_error_connection_invalid {
-            //     return Message::Error(MessageError::ConnectionInvalid);
-            // }
-
-            Message::Error(MessageError::Unknown)
-        }
+        XpcType::Error => unsafe {
+            if std::ptr::eq(
+                xpc_object as *const _,
+                &_xpc_error_connection_interrupted as *const _ as *const _,
+            ) {
+                Message::Error(MessageError::ConnectionInterrupted)
+            } else {
+                Message::Error(MessageError::ConnectionInvalid)
+            }
+        },
         _ => panic!("Unmapped `xpc` object type!"),
     }
 }
 
 pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
     match message {
+        Message::Client(xpc_connection) => xpc_connection.connection.0 as xpc_object_t,
+        Message::Listener(xpc_connection) => xpc_connection.connection.0 as xpc_object_t,
         Message::Int64(value) => unsafe { xpc_int64_create(value) },
-        Message::String(value) => unsafe {
-            let cstr = CStr::from_bytes_with_nul(value.as_bytes()).unwrap();
-            let cstr_ptr = cstr.as_ptr();
-            xpc_string_create(cstr_ptr)
-        },
+        Message::String(value) => unsafe { xpc_string_create(value.as_ptr()) },
         Message::Dictionary(values) => {
             let dictionary = unsafe {
                 xpc_dictionary_create(ptr::null(), ptr::null_mut() as *mut *mut c_void, 0)
             };
             for (key, value) in values {
                 unsafe {
-                    let cstr = CStr::from_bytes_with_nul(key.as_bytes()).unwrap();
-                    let cstr_ptr = cstr.as_ptr();
                     let xpc_value = message_to_xpc_object(value);
-                    xpc_dictionary_set_value(dictionary, cstr_ptr, xpc_value);
+                    xpc_dictionary_set_value(dictionary, key.as_ptr(), xpc_value);
                     xpc_release(xpc_value);
                 }
             }
@@ -210,18 +220,7 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
         Message::Data(value) => unsafe {
             xpc_data_create(value.as_ptr() as *const _, value.len() as u64)
         },
-        Message::Uuid(value) => unsafe {
-            let cstr = CStr::from_bytes_with_nul(&value).unwrap();
-            let cstr_ptr = cstr.as_ptr();
-            xpc_uuid_create(cstr_ptr as *const _)
-        },
+        Message::Uuid(value) => unsafe { xpc_uuid_create(value.as_ptr()) },
         Message::Error(_) => panic!("Cannot convert error to `xpc` object!"),
     }
-}
-
-fn cstring_to_string(cstring: *const c_char) -> String {
-    unsafe { CStr::from_ptr(cstring) }
-        .to_str()
-        .unwrap()
-        .to_owned()
 }
