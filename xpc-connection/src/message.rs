@@ -131,17 +131,19 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
         }
         XpcType::Array => {
             let (sender, receiver) = channel();
-            let mut rc_block = ConcreteBlock::new(move |index: usize, value| {
-                sender.send((index, xpc_object_to_message(value))).unwrap();
+            let mut rc_block = ConcreteBlock::new(move |_index: usize, value| {
+                sender.send(xpc_object_to_message(value)).unwrap();
                 1
             });
             let block = &mut *rc_block;
             unsafe { xpc_array_apply(xpc_object, block as *mut Block<_, _> as *mut c_void) };
 
-            let mut array = vec![];
-            for _ in 0..unsafe { xpc_array_get_count(xpc_object) } {
-                let (index, value) = receiver.recv().unwrap();
-                array[index] = value;
+            let len = unsafe { xpc_array_get_count(xpc_object) } as usize;
+            let mut array = Vec::with_capacity(len);
+
+            for _ in 0..len {
+                let value = receiver.recv().unwrap();
+                array.push(value);
             }
 
             Message::Array(array)
