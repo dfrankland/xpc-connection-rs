@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "examples/client",
+    "examples/echo-server",
     "xpc-connection-sys",
     "xpc-connection"
 ]
