@@ -39,7 +39,7 @@ impl XpcConnection {
         }
     }
 
-    pub fn connect(self: &mut Self) -> UnboundedReceiver<Message> {
+    pub fn connect(&mut self) -> UnboundedReceiver<Message> {
         // Start a connection
         let connection = {
             let service_name_cstring =
@@ -83,7 +83,7 @@ impl XpcConnection {
         unbounded_receiver
     }
 
-    pub fn send_message(self: &Self, message: Message) {
+    pub fn send_message(&self, message: Message) {
         let xpc_object = message_to_xpc_object(message);
         unsafe {
             xpc_connection_send_message(self.connection.unwrap(), xpc_object);
