@@ -1,21 +1,14 @@
-branches:
-  only:
-  - master
 language: rust
-rust:
-  - stable
 cache:
   cargo: true
-matrix:
-  # https://docs.travis-ci.com/user/reference/osx/#os-x-version
-  include:
-    - os: osx # 10.14
-      osx_image: xcode11.3
-    - os: osx # 10.13
-      osx_image: xcode10.1
-  allow_failures:
-    - os: osx # 10.12
-      osx_image: xcode9.2
+rust:
+- nightly
+- stable
+os: osx
+osx_image:
+- xcode12.2 # macOS 10.15.7
+- xcode11.3 # macOS 10.14.6
+- xcode10.1 # macOS 10.13
 before_install:
   - rustup component add clippy rustfmt
 script:
