@@ -11,7 +11,7 @@ extern crate xpc_connection_sys;
 mod message;
 
 use std::ffi::CStr;
-use std::{ops::Deref, ptr};
+use std::ops::Deref;
 use std::{pin::Pin, task::Poll};
 
 use block::ConcreteBlock;
@@ -23,31 +23,52 @@ use futures::{
 
 pub use self::message::*;
 use xpc_connection_sys::{
-    dispatch_queue_create, xpc_connection_cancel, xpc_connection_create_mach_service,
-    xpc_connection_resume, xpc_connection_send_message, xpc_connection_set_event_handler,
-    xpc_connection_t, xpc_object_t, xpc_release, XPC_CONNECTION_MACH_SERVICE_LISTENER,
-    XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
+    xpc_connection_cancel, xpc_connection_create_mach_service, xpc_connection_resume,
+    xpc_connection_send_message, xpc_connection_set_event_handler, xpc_connection_t, xpc_object_t,
+    xpc_release, XPC_CONNECTION_MACH_SERVICE_LISTENER, XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
 };
 
-#[derive(Debug)]
-struct Connection(xpc_connection_t);
+// A connection's event handler could still be waiting or running when we want
+// to drop a connection. We must cancel the handler and wait for the final
+// call to a handler to occur, which is always a message containing an
+// invalidation error.
+fn cancel_and_wait_for_event_handler(connection: xpc_connection_t) {
+    let (tx, rx) = std::sync::mpsc::channel();
 
-impl Drop for Connection {
-    fn drop(&mut self) {
-        unsafe {
-            xpc_connection_cancel(self.0);
-            xpc_release(self.0 as xpc_object_t);
-        }
+    let block = ConcreteBlock::new(move |_: xpc_object_t| {
+        tx.send(())
+            .expect("Failed to announce that the xpc connection's event handler has exited");
+    });
+
+    // We must move it from the stack to the heap so that when the libxpc
+    // reference count is released we don't double free. This limitation is
+    // explained in the blocks crate.
+    let block = block.copy();
+
+    unsafe {
+        xpc_connection_set_event_handler(connection, block.deref() as *const _ as *mut _);
+
+        xpc_connection_cancel(connection);
     }
-}
 
-unsafe impl Send for Connection {}
+    rx.recv()
+        .expect("Failed to wait for the xpc connection's event handler to exit");
+}
 
 #[derive(Debug)]
 pub struct XpcListener {
-    connection: Connection,
+    connection: xpc_connection_t,
     receiver: UnboundedReceiver<XpcClient>,
     sender: UnboundedSender<XpcClient>,
+}
+
+impl Drop for XpcListener {
+    fn drop(&mut self) {
+        unsafe {
+            cancel_and_wait_for_event_handler(self.connection);
+            xpc_release(self.connection as xpc_object_t);
+        }
+    }
 }
 
 impl Stream for XpcListener {
@@ -63,7 +84,6 @@ impl Stream for XpcListener {
 
 impl XpcListener {
     /// The connection must be a listener.
-    // TODO: Is there a way to verify that the xpc_connection_t is a listener?
     fn from_raw(connection: xpc_connection_t) -> XpcListener {
         let (sender, receiver) = unbounded_channel();
         let sender_clone = sender.clone();
@@ -84,7 +104,7 @@ impl XpcListener {
         }
 
         XpcListener {
-            connection: Connection(connection),
+            connection,
             receiver,
             sender,
         }
@@ -92,19 +112,32 @@ impl XpcListener {
 
     pub fn listen(name: impl AsRef<CStr>) -> Self {
         let name = name.as_ref();
-        let queue = unsafe { dispatch_queue_create(name.as_ptr(), ptr::null_mut()) };
         let flags = XPC_CONNECTION_MACH_SERVICE_LISTENER as u64;
-        let connection =
-            unsafe { xpc_connection_create_mach_service(name.as_ref().as_ptr(), queue, flags) };
+        let connection = unsafe {
+            xpc_connection_create_mach_service(name.as_ref().as_ptr(), std::ptr::null_mut(), flags)
+        };
         Self::from_raw(connection)
     }
 }
 
 #[derive(Debug)]
 pub struct XpcClient {
-    connection: Connection,
+    connection: xpc_connection_t,
+    event_handler_is_running: bool,
     receiver: UnboundedReceiver<Message>,
     sender: UnboundedSender<Message>,
+}
+
+unsafe impl Send for XpcClient {}
+
+impl Drop for XpcClient {
+    fn drop(&mut self) {
+        if self.event_handler_is_running {
+            cancel_and_wait_for_event_handler(self.connection);
+        }
+
+        unsafe { xpc_release(self.connection as xpc_object_t) };
+    }
 }
 
 impl Stream for XpcClient {
@@ -118,7 +151,10 @@ impl Stream for XpcClient {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         match Stream::poll_next(Pin::new(&mut self.receiver), cx) {
-            Poll::Ready(Some(Message::Error(MessageError::ConnectionInvalid))) => Poll::Ready(None),
+            Poll::Ready(Some(Message::Error(MessageError::ConnectionInvalid))) => {
+                self.event_handler_is_running = false;
+                Poll::Ready(None)
+            }
             v => v,
         }
     }
@@ -148,7 +184,8 @@ impl XpcClient {
         }
 
         XpcClient {
-            connection: Connection(connection),
+            connection,
+            event_handler_is_running: true,
             receiver,
             sender,
         }
@@ -157,9 +194,10 @@ impl XpcClient {
     /// The connection isn't established until the first call to `send_message`.
     pub fn connect(name: impl AsRef<CStr>) -> Self {
         let name = name.as_ref();
-        let queue = unsafe { dispatch_queue_create(name.as_ptr(), ptr::null_mut()) };
         let flags = XPC_CONNECTION_MACH_SERVICE_PRIVILEGED as u64;
-        let connection = unsafe { xpc_connection_create_mach_service(name.as_ptr(), queue, flags) };
+        let connection = unsafe {
+            xpc_connection_create_mach_service(name.as_ptr(), std::ptr::null_mut(), flags)
+        };
         Self::from_raw(connection)
     }
 
@@ -169,7 +207,7 @@ impl XpcClient {
     pub fn send_message(&self, message: Message) {
         let xpc_object = message_to_xpc_object(message);
         unsafe {
-            xpc_connection_send_message(self.connection.0, xpc_object);
+            xpc_connection_send_message(self.connection, xpc_object);
             xpc_release(xpc_object);
         }
     }
@@ -188,14 +226,11 @@ mod tests {
     fn event_handler_receives_error_on_close() {
         let mach_port_name = CString::new("com.apple.blued").unwrap();
         let mut client = XpcClient::connect(&mach_port_name);
-        let connection = client.connection.0;
 
         // Cancelling the connection will cause the event handler to be called
         // with an error message. This will happen under normal circumstances,
         // for example if the service invalidates the connection.
-        unsafe {
-            xpc_connection_cancel(connection);
-        }
+        unsafe { xpc_connection_cancel(client.connection) };
 
         if let Some(message) = block_on(client.next()) {
             panic!("Expected `None`, but received {:?}", message);
@@ -206,7 +241,6 @@ mod tests {
     fn stream_closed_on_drop() -> Result<(), Box<dyn std::error::Error>> {
         let mach_port_name = CString::new("com.apple.blued")?;
         let mut client = XpcClient::connect(&mach_port_name);
-        let connection = client.connection.0;
 
         let message = Message::Dictionary({
             let mut dictionary = HashMap::new();
@@ -241,9 +275,7 @@ mod tests {
                     count += 1;
 
                     // Explained in `event_handler_receives_error_on_close`.
-                    unsafe {
-                        xpc_connection_cancel(connection);
-                    }
+                    unsafe { xpc_connection_cancel(client.connection) };
                 }
                 None => {
                     // We can't be sure how many buffered messages we'll receive

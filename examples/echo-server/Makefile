@@ -1,11 +1,11 @@
 CFLAGS+=-O2
 
-all: ../target/release/echo-server
+all: ../../target/release/echo-server
 
-../target/release/echo-server: src/main.rs
+../../target/release/echo-server: src/main.rs
 	cargo build --release
 
-install: ../target/release/echo-server
+install: ../../target/release/echo-server
 	cp ../../target/release/echo-server /Library/PrivilegedHelperTools/com.example.echo
 	cp com.example.echo.plist /Library/LaunchDaemons/
 	launchctl load /Library/LaunchDaemons/com.example.echo.plist
