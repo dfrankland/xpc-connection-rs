@@ -28,30 +28,28 @@ fn send_and_receive_int64() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 #[ignore = "This test requires the echo server to be running"]
-async fn send_and_receive_string() {
-    loop {
-        let mach_port_name = CString::new("com.example.echo").unwrap();
-        let mut con = XpcClient::connect(mach_port_name);
+async fn send_and_receive_string() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
 
-        let mut output = HashMap::new();
-        let key = CString::new("K").unwrap();
-        let value = CString::new("V").unwrap();
-        output.insert(key.clone(), Message::String(value.clone()));
+    let mut output = HashMap::new();
+    let key = CString::new("K")?;
+    let value = CString::new("V")?;
+    output.insert(key.clone(), Message::String(value.clone()));
 
-        con.send_message(Message::Dictionary(output));
+    con.send_message(Message::Dictionary(output));
 
-        match con.next().await {
-            Some(Message::Dictionary(d)) => {
-                let input = d.get(&key);
-                if let Some(Message::String(s)) = input {
-                    assert_eq!(s, &value);
-                    continue;
-                }
-                panic!("Received unexpected value: {:?}", input);
+    match con.next().await {
+        Some(Message::Dictionary(d)) => {
+            let input = d.get(&key);
+            if let Some(Message::String(s)) = input {
+                assert_eq!(s, &value);
+                return Ok(());
             }
-            Some(message) => panic!("Didn't receive the container dictionary: {:?}", message),
-            None => panic!("Didn't receive a response"),
+            panic!("Received unexpected value: {:?}", input);
         }
+        Some(message) => panic!("Didn't receive the container dictionary: {:?}", message),
+        None => panic!("Didn't receive a response"),
     }
 }
 
@@ -151,6 +149,34 @@ fn send_and_receive_data() -> Result<(), Box<dyn Error>> {
 #[test]
 #[ignore = "This test requires the echo server to be running"]
 fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Uuid(value.clone()));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Uuid(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn connect_and_disconnect() -> Result<(), Box<dyn Error>> {
     let mach_port_name = CString::new("com.example.echo")?;
     let mut con = XpcClient::connect(mach_port_name);
 

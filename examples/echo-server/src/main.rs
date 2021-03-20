@@ -8,7 +8,6 @@ async fn handle_client(mut client: XpcClient) {
     loop {
         match client.next().await {
             None => {
-                println!("The connection was invalidated.");
                 break;
             }
             Some(Message::Error(MessageError::ConnectionInterrupted)) => {
@@ -20,6 +19,8 @@ async fn handle_client(mut client: XpcClient) {
             }
         }
     }
+
+    println!("The connection was invalidated.");
 }
 
 #[tokio::main(flavor = "multi_thread")]

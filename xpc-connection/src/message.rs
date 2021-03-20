@@ -18,7 +18,8 @@ use xpc_connection_sys::{
     xpc_connection_t, xpc_data_create, xpc_data_get_bytes_ptr, xpc_data_get_length,
     xpc_dictionary_apply, xpc_dictionary_create, xpc_dictionary_get_count,
     xpc_dictionary_set_value, xpc_get_type, xpc_int64_create, xpc_int64_get_value, xpc_object_t,
-    xpc_release, xpc_string_create, xpc_string_get_string_ptr, xpc_uuid_create, xpc_uuid_get_bytes,
+    xpc_release, xpc_retain, xpc_string_create, xpc_string_get_string_ptr, xpc_uuid_create,
+    xpc_uuid_get_bytes,
 };
 
 use crate::{XpcClient, XpcListener};
@@ -115,6 +116,7 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
     match xpc_object_to_xpctype(xpc_object).0 {
         XpcType::Connection => {
             let connection = xpc_object as xpc_connection_t;
+            unsafe { xpc_retain(connection as xpc_object_t) };
             let xpc_connection = XpcClient::from_raw(connection);
             Message::Client(xpc_connection)
         }
@@ -189,8 +191,8 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
 
 pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
     match message {
-        Message::Client(xpc_connection) => xpc_connection.connection.0 as xpc_object_t,
-        Message::Listener(xpc_connection) => xpc_connection.connection.0 as xpc_object_t,
+        Message::Client(client) => client.connection as xpc_object_t,
+        Message::Listener(listener) => listener.connection as xpc_object_t,
         Message::Int64(value) => unsafe { xpc_int64_create(value) },
         Message::String(value) => unsafe { xpc_string_create(value.as_ptr()) },
         Message::Dictionary(values) => {
