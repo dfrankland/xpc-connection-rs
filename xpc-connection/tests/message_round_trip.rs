@@ -148,6 +148,34 @@ fn send_and_receive_data() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_uint64() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = 0x2d13772f7f30cc5d_u64;
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Uint64(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Uint64(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
 fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
     let mach_port_name = CString::new("com.example.echo")?;
     let mut con = XpcClient::connect(mach_port_name);
@@ -164,6 +192,34 @@ fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
     if let Some(Message::Dictionary(d)) = message {
         let input = d.get(&key);
         if let Some(Message::Uuid(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = 1;
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Fd(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Fd(v)) = input {
             assert_eq!(*v, value);
             return Ok(());
         }
