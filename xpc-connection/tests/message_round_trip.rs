@@ -1,5 +1,11 @@
 use futures::{executor::block_on, StreamExt};
-use std::{collections::HashMap, error::Error, ffi::CString};
+use std::{
+    collections::HashMap,
+    error::Error,
+    ffi::CString,
+    fs::File,
+    os::unix::prelude::{FromRawFd, IntoRawFd, MetadataExt},
+};
 use xpc_connection::{Message, XpcClient};
 
 #[test]
@@ -209,10 +215,11 @@ fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
     let mut con = XpcClient::connect(mach_port_name);
 
     let key = CString::new("K")?;
-    let value = 1;
+    let original = File::create("/tmp/a")?;
+    let original_inode = original.metadata()?.ino();
 
     let mut output = HashMap::new();
-    output.insert(key.clone(), Message::Fd(value));
+    output.insert(key.clone(), Message::Fd(original.into_raw_fd()));
 
     con.send_message(Message::Dictionary(output));
 
@@ -220,7 +227,8 @@ fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
     if let Some(Message::Dictionary(d)) = message {
         let input = d.get(&key);
         if let Some(Message::Fd(v)) = input {
-            assert_eq!(*v, value);
+            let new = unsafe { File::from_raw_fd(*v) };
+            assert_eq!(original_inode, new.metadata()?.ino());
             return Ok(());
         }
 
