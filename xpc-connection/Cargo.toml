@@ -10,10 +10,15 @@ repository = "https://github.com/dfrankland/xpc-connection-rs"
 keywords = ["xpc", "mac", "macOS"]
 categories = ["os", "api-bindings", "concurrency", "encoding"]
 
+[features]
+audit_token = []
+default = []
+
 [dependencies]
 block = "0.1.6"
+core-foundation = { version = "0.9", optional = true }
 futures = "0.3.4"
-xpc-connection-sys = { path="../xpc-connection-sys", version="0.1.0" }
+xpc-connection-sys = { path = "../xpc-connection-sys", version = "0.1.0" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

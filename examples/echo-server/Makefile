@@ -1,16 +1,14 @@
-CFLAGS+=-O2
+all: ../../target/debug/echo-server
 
-all: ../../target/release/echo-server
+../../target/debug/echo-server:
+	cargo build
 
-../../target/release/echo-server: src/main.rs
-	cargo build --release
-
-install: ../../target/release/echo-server
-	cp ../../target/release/echo-server /Library/PrivilegedHelperTools/com.example.echo
-	cp com.example.echo.plist /Library/LaunchDaemons/
-	launchctl load /Library/LaunchDaemons/com.example.echo.plist
+install: ../../target/debug/echo-server
+	sudo cp ../../target/debug/echo-server /Library/PrivilegedHelperTools/com.example.echo
+	sudo cp com.example.echo.plist /Library/LaunchDaemons/
+	sudo launchctl load /Library/LaunchDaemons/com.example.echo.plist
 
 uninstall:
-	launchctl unload /Library/LaunchDaemons/com.example.echo.plist
-	rm /Library/PrivilegedHelperTools/com.example.echo
-	rm /Library/LaunchDaemons/com.example.echo.plist
+	sudo launchctl unload /Library/LaunchDaemons/com.example.echo.plist
+	sudo rm /Library/PrivilegedHelperTools/com.example.echo
+	sudo rm /Library/LaunchDaemons/com.example.echo.plist
