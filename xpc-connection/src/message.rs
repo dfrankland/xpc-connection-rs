@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     ffi::{CStr, CString},
     mem,
-    os::raw::c_void,
+    os::{raw::c_void, unix::io::RawFd},
     ptr,
     sync::mpsc::channel,
 };
@@ -17,8 +17,9 @@ use xpc_connection_sys::{
     xpc_array_append_value, xpc_array_apply, xpc_array_create, xpc_array_get_count,
     xpc_connection_t, xpc_data_create, xpc_data_get_bytes_ptr, xpc_data_get_length,
     xpc_dictionary_apply, xpc_dictionary_create, xpc_dictionary_get_count,
-    xpc_dictionary_set_value, xpc_get_type, xpc_int64_create, xpc_int64_get_value, xpc_object_t,
-    xpc_release, xpc_retain, xpc_string_create, xpc_string_get_string_ptr, xpc_uuid_create,
+    xpc_dictionary_set_value, xpc_fd_create, xpc_fd_dup, xpc_get_type, xpc_int64_create,
+    xpc_int64_get_value, xpc_object_t, xpc_release, xpc_retain, xpc_string_create,
+    xpc_string_get_string_ptr, xpc_uint64_create, xpc_uint64_get_value, xpc_uuid_create,
     xpc_uuid_get_bytes,
 };
 
@@ -93,12 +94,14 @@ unsafe fn copy_raw_to_vec(ptr: *const u8, length: usize) -> Vec<u8> {
 #[derive(Debug)]
 pub enum Message {
     Client(XpcClient),
+    Fd(RawFd),
     Listener(XpcListener),
     Int64(i64),
     String(CString),
     Dictionary(HashMap<CString, Message>),
     Array(Vec<Message>),
     Data(Vec<u8>),
+    Uint64(u64),
     Uuid(Vec<u8>),
     Error(MessageError),
 }
@@ -121,6 +124,8 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
             Message::Client(xpc_connection)
         }
         XpcType::Int64 => Message::Int64(unsafe { xpc_int64_get_value(xpc_object) }),
+        XpcType::Uint64 => Message::Uint64(unsafe { xpc_uint64_get_value(xpc_object) }),
+        XpcType::Fd => Message::Fd(unsafe { xpc_fd_dup(xpc_object) }),
         XpcType::String => Message::String(
             unsafe { CStr::from_ptr(xpc_string_get_string_ptr(xpc_object)) }.to_owned(),
         ),
@@ -192,6 +197,7 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
 pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
     match message {
         Message::Client(client) => client.connection as xpc_object_t,
+        Message::Fd(fd) => unsafe { xpc_fd_create(fd) },
         Message::Listener(listener) => listener.connection as xpc_object_t,
         Message::Int64(value) => unsafe { xpc_int64_create(value) },
         Message::String(value) => unsafe { xpc_string_create(value.as_ptr()) },
@@ -222,6 +228,7 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
         Message::Data(value) => unsafe {
             xpc_data_create(value.as_ptr() as *const _, value.len() as u64)
         },
+        Message::Uint64(value) => unsafe { xpc_uint64_create(value) },
         Message::Uuid(value) => unsafe { xpc_uuid_create(value.as_ptr()) },
         Message::Error(_) => panic!("Cannot convert error to `xpc` object!"),
     }
