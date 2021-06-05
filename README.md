@@ -24,8 +24,10 @@ serialized property lists for Mac OS. Read more at the
 *   `data`: `Vec<u8>`
 *   `dictionary`: `HashMap<String, Message>`
 *   `error`: `MessageError`
-*   `int64`: `int64`
+*   `fd`: `RawFd`
+*   `int64`: `i64`
 *   `string`: `String`
+*   `uint64`: `u64`
 *   `uuid`: `Vec<u8>`
 
 ## Yet to Be Supported Data Types
@@ -35,7 +37,5 @@ serialized property lists for Mac OS. Read more at the
 *   `date`
 *   `double`
 *   `endpoint`
-*   `fd`
 *   `null`
 *   `shmem`
-*   `uint64`

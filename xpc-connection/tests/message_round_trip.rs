@@ -1,5 +1,11 @@
 use futures::{executor::block_on, StreamExt};
-use std::{collections::HashMap, error::Error, ffi::CString};
+use std::{
+    collections::HashMap,
+    error::Error,
+    ffi::CString,
+    fs::File,
+    os::unix::prelude::{FromRawFd, IntoRawFd, MetadataExt},
+};
 use xpc_connection::{Message, XpcClient};
 
 #[test]
@@ -148,6 +154,34 @@ fn send_and_receive_data() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_uint64() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = 0x2d13772f7f30cc5d_u64;
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Uint64(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Uint64(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
 fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
     let mach_port_name = CString::new("com.example.echo")?;
     let mut con = XpcClient::connect(mach_port_name);
@@ -165,6 +199,36 @@ fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Uuid(v)) = input {
             assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let original = File::create("/tmp/a")?;
+    let original_inode = original.metadata()?.ino();
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Fd(original.into_raw_fd()));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Fd(v)) = input {
+            let new = unsafe { File::from_raw_fd(*v) };
+            assert_eq!(original_inode, new.metadata()?.ino());
             return Ok(());
         }
 
