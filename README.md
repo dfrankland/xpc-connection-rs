@@ -18,6 +18,14 @@ serialized property lists for Mac OS. Read more at the
 
 [apple developer]: https://developer.apple.com/documentation/xpc
 
+## Features
+
+* `audit_token` enables retrieving the client's audit token. This requires
+  using a private API, but it's the simplest way to securely validate clients.
+  See [CVE-2020-0984](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-0984)
+  and [this useful blog post](https://theevilbit.github.io/posts/secure_coding_xpc_part2/).
+  The [example echo server](examples/echo-server/src/main.rs) makes use of this.
+
 ## Supported Data Types
 
 *   `array`: `Vec<Message>`

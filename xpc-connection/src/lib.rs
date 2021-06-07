@@ -9,19 +9,16 @@
 extern crate xpc_connection_sys;
 
 mod message;
-
-use std::ffi::CStr;
-use std::ops::Deref;
-use std::{pin::Pin, task::Poll};
+pub use message::*;
 
 use block::ConcreteBlock;
-
 use futures::{
     channel::mpsc::{unbounded as unbounded_channel, UnboundedReceiver, UnboundedSender},
     Stream,
 };
-
-pub use self::message::*;
+use std::ffi::CStr;
+use std::{ffi::c_void, ops::Deref};
+use std::{pin::Pin, task::Poll};
 use xpc_connection_sys::{
     xpc_connection_cancel, xpc_connection_create_mach_service, xpc_connection_resume,
     xpc_connection_send_message, xpc_connection_set_event_handler, xpc_connection_t, xpc_object_t,
@@ -210,6 +207,27 @@ impl XpcClient {
             xpc_connection_send_message(self.connection, xpc_object);
             xpc_release(xpc_object);
         }
+    }
+
+    #[cfg(feature = "audit_token")]
+    pub fn audit_token(&self) -> [u8; 32] {
+        // This is a private API, but it's also required in order to
+        // authenticate XPC clients without requiring a handshake.
+        // See https://developer.apple.com/forums/thread/72881 for more info.
+        extern "C" {
+            fn xpc_connection_get_audit_token(con: xpc_connection_t, token: *mut c_void);
+        }
+
+        let mut token_buffer: [u8; 32] = [0; 32];
+
+        unsafe {
+            xpc_connection_get_audit_token(
+                self.connection as xpc_connection_t,
+                token_buffer.as_mut_ptr() as _,
+            )
+        }
+
+        token_buffer
     }
 }
 

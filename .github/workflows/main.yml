@@ -26,7 +26,7 @@ jobs:
           override: true
 
       - name: Build and run the echo server
-        run: cd examples/echo-server && make && sudo make install
+        run: cd examples/echo-server && make && make install
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1

@@ -8,6 +8,9 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+core-foundation = "0.9"
 futures = { version = "0.3" }
+# Support for SecCode was added in 2.3.1
+security-framework = "^2.3.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-xpc-connection = { path = "../../xpc-connection" }
+xpc-connection = { path = "../../xpc-connection", features = ["audit_token"] }
