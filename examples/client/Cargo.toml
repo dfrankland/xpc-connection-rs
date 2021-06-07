@@ -8,4 +8,4 @@ publish = false
 [dependencies]
 futures = { version = "0.3" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-xpc-connection = { path = "../../xpc-connection", default-features = false }
+xpc-connection = { path = "../../xpc-connection" }
