@@ -11,14 +11,20 @@ keywords = ["xpc", "mac", "macOS"]
 categories = ["os", "api-bindings", "concurrency", "encoding"]
 
 [features]
-audit_token = []
+audit_token = ["core-foundation", "security-framework"]
 default = []
 
 [dependencies]
 block = "0.1.6"
-core-foundation = { version = "0.9", optional = true }
 futures = "0.3.4"
 xpc-connection-sys = { path = "../xpc-connection-sys", version = "0.1.0" }
+
+# Remove when weak linkage is stable
+libc = "0.2.97"
+
+# For the audit_token feature
+core-foundation = { version = "0.9", optional = true }
+security-framework = { version = "^2.3.1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

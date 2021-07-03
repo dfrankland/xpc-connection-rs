@@ -1,6 +1,6 @@
 #[allow(
     dead_code,
-    safe_packed_borrows,
+    unaligned_references,
     non_upper_case_globals,
     non_camel_case_types,
     non_snake_case,
@@ -11,19 +11,33 @@ extern crate xpc_connection_sys;
 mod message;
 pub use message::*;
 
+#[macro_use]
+mod dlsym;
+
 use block::ConcreteBlock;
 use futures::{
     channel::mpsc::{unbounded as unbounded_channel, UnboundedReceiver, UnboundedSender},
     Stream,
 };
-use std::ffi::CStr;
-use std::{ffi::c_void, ops::Deref};
-use std::{pin::Pin, task::Poll};
-use xpc_connection_sys::{
-    xpc_connection_cancel, xpc_connection_create_mach_service, xpc_connection_resume,
-    xpc_connection_send_message, xpc_connection_set_event_handler, xpc_connection_t, xpc_object_t,
-    xpc_release, XPC_CONNECTION_MACH_SERVICE_LISTENER, XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
+use std::{
+    ffi::{CStr, CString},
+    ops::Deref,
+    os::raw::{c_char, c_int},
+    pin::Pin,
+    sync::atomic::AtomicUsize,
+    task::Poll,
 };
+
+use xpc_connection_sys::{
+    dispatch_queue_t, xpc_connection_cancel, xpc_connection_create_mach_service,
+    xpc_connection_resume, xpc_connection_send_message, xpc_connection_set_event_handler,
+    xpc_connection_t, xpc_object_t, xpc_release, XPC_CONNECTION_MACH_SERVICE_LISTENER,
+    XPC_CONNECTION_MACH_SERVICE_PRIVILEGED,
+};
+
+dlsym! {
+    fn xpc_connection_set_peer_code_sig(*const c_char) -> c_int
+}
 
 // A connection's event handler could still be waiting or running when we want
 // to drop a connection. We must cancel the handler and wait for the final
@@ -81,12 +95,35 @@ impl Stream for XpcListener {
 
 impl XpcListener {
     /// The connection must be a listener.
-    fn from_raw(connection: xpc_connection_t) -> XpcListener {
+    fn from_raw(connection: xpc_connection_t, requirement: Option<&'static str>) -> XpcListener {
         let (sender, receiver) = unbounded_channel();
         let sender_clone = sender.clone();
 
+        let mut already_validated = false;
+
+        if let Some(requirement) = requirement {
+            if let Some(f) = crate::xpc_connection_set_peer_code_sig.get() {
+                let requirement = CString::new(requirement).expect("Invalid requirement string");
+                unsafe {
+                    f(requirement.as_ptr());
+                }
+
+                already_validated = true;
+            }
+        }
+
         let block = ConcreteBlock::new(move |event| match xpc_object_to_message(event) {
-            Message::Client(client) => sender_clone.unbounded_send(client).ok(),
+            Message::Client(mut client) => {
+                if already_validated
+                    || Self::validate_client_using_audit_token(&client, &requirement)
+                {
+                    sender_clone.unbounded_send(client).ok()
+                } else {
+                    unsafe { xpc_connection_cancel(client.connection) };
+                    client.event_handler_is_running = false;
+                    None
+                }
+            }
             _ => None,
         });
 
@@ -107,13 +144,67 @@ impl XpcListener {
         }
     }
 
-    pub fn listen(name: impl AsRef<CStr>) -> Self {
+    /// If `requirement` is set then clients will have their code signature
+    /// validated before being available.
+    ///
+    /// On macOS 12 this uses `xpc_connection_set_peer_code_sig`, and if the
+    /// `audit_token` feature is enabled then this will use a custom
+    /// implementation on older versions of macOS.
+    ///
+    /// # Panics
+    ///
+    /// * If `audit_token` feature is used and the `requirement` isn't parsable
+    ///   as a `SecRequirement`. This will occur during client validation.
+    pub fn listen(
+        name: impl AsRef<CStr>,
+        requirement: Option<&'static str>,
+        queue: Option<dispatch_queue_t>,
+    ) -> XpcListener {
         let name = name.as_ref();
         let flags = XPC_CONNECTION_MACH_SERVICE_LISTENER as u64;
-        let connection = unsafe {
-            xpc_connection_create_mach_service(name.as_ref().as_ptr(), std::ptr::null_mut(), flags)
+        let queue = queue.unwrap_or(std::ptr::null_mut());
+
+        let connection =
+            unsafe { xpc_connection_create_mach_service(name.as_ref().as_ptr(), queue, flags) };
+
+        Self::from_raw(connection, requirement)
+    }
+
+    #[inline]
+    #[cfg(feature = "audit_token")]
+    fn validate_client_using_audit_token(client: &XpcClient, requirement: &Option<&str>) -> bool {
+        use core_foundation::{base::TCFType, data::CFData};
+        use security_framework::os::macos::code_signing::{Flags, GuestAttributes, SecCode};
+
+        let requirement = match requirement {
+            Some(r) => r,
+            None => return true,
         };
-        Self::from_raw(connection)
+
+        let requirement = requirement
+            .parse()
+            .expect("Unable to parse the requirement");
+
+        let token_data = CFData::from_buffer(&client.audit_token());
+        let mut attrs = GuestAttributes::new();
+        attrs.set_audit_token(token_data.as_concrete_TypeRef());
+
+        if let Ok(code_object) = SecCode::copy_guest_with_attribues(None, &attrs, Flags::NONE) {
+            return code_object
+                .check_validity(Flags::NONE, &requirement)
+                .is_ok();
+        }
+
+        false
+    }
+
+    #[inline]
+    #[cfg(not(feature = "audit_token"))]
+    fn validate_client_using_audit_token(_client: &XpcClient, _requirement: &Option<&str>) -> bool {
+        // TODO: log an error:
+        // Attempted to use code signature requirements on an unsupported
+        // version of macOS without the `audit_token` feature enabled
+        false
     }
 }
 
@@ -211,6 +302,8 @@ impl XpcClient {
 
     #[cfg(feature = "audit_token")]
     pub fn audit_token(&self) -> [u8; 32] {
+        use libc::c_void;
+
         // This is a private API, but it's also required in order to
         // authenticate XPC clients without requiring a handshake.
         // See https://developer.apple.com/forums/thread/72881 for more info.
