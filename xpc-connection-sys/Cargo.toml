@@ -11,6 +11,6 @@ keywords = ["xpc", "mac", "macOS"]
 categories = ["os", "api-bindings", "concurrency", "encoding"]
 
 [build-dependencies]
-bindgen = "0.58.1"
+bindgen = "0.59.1"
 
 [dependencies]
