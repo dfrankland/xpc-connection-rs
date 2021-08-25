@@ -325,6 +325,33 @@ fn send_and_receive_date() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_null() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = SystemTime::now();
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Null);
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if matches!(input, Some(Message::Null)) {
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
 fn connect_and_disconnect() -> Result<(), Box<dyn Error>> {
     let mach_port_name = CString::new("com.example.echo")?;
     let mut con = XpcClient::connect(mach_port_name);

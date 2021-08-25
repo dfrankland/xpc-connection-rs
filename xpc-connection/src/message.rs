@@ -20,7 +20,7 @@ use xpc_connection_sys::{
     xpc_data_get_length, xpc_date_create, xpc_date_get_value, xpc_dictionary_apply,
     xpc_dictionary_create, xpc_dictionary_get_count, xpc_dictionary_set_value, xpc_double_create,
     xpc_double_get_value, xpc_fd_create, xpc_fd_dup, xpc_get_type, xpc_int64_create,
-    xpc_int64_get_value, xpc_object_t, xpc_release, xpc_retain, xpc_string_create,
+    xpc_int64_get_value, xpc_null_create, xpc_object_t, xpc_release, xpc_retain, xpc_string_create,
     xpc_string_get_string_ptr, xpc_uint64_create, xpc_uint64_get_value, xpc_uuid_create,
     xpc_uuid_get_bytes,
 };
@@ -109,6 +109,7 @@ pub enum Message {
     Uint64(u64),
     Uuid(Vec<u8>),
     Error(MessageError),
+    Null,
 }
 
 #[derive(Debug, Clone)]
@@ -202,6 +203,7 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
                 Message::Error(MessageError::ConnectionInvalid)
             }
         },
+        XpcType::Null => Message::Null,
         _ => panic!("Unmapped `xpc` object type!"),
     }
 }
@@ -252,5 +254,6 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
         Message::Uint64(value) => unsafe { xpc_uint64_create(value) },
         Message::Uuid(value) => unsafe { xpc_uuid_create(value.as_ptr()) },
         Message::Error(_) => panic!("Cannot convert error to `xpc` object!"),
+        Message::Null => unsafe { xpc_null_create() },
     }
 }

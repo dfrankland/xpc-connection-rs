@@ -40,10 +40,10 @@ serialized property lists for Mac OS. Read more at the
 *   `string`: `String`
 *   `uint64`: `u64`
 *   `uuid`: `Vec<u8>`
+*   `null`
 
 ## Yet to Be Supported Data Types
 
 *   `activity`
 *   `endpoint`
-*   `null`
 *   `shmem`
