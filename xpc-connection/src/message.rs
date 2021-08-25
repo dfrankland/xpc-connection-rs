@@ -131,9 +131,13 @@ pub fn xpc_object_to_message(xpc_object: xpc_object_t) -> Message {
             Message::Client(xpc_connection)
         }
         XpcType::Date => {
-            let time_since_epoch =
-                Duration::from_nanos(unsafe { xpc_date_get_value(xpc_object) } as u64);
-            Message::Date(SystemTime::UNIX_EPOCH + time_since_epoch)
+            let nanos = unsafe { xpc_date_get_value(xpc_object) };
+            let time_since_epoch = Duration::from_nanos(nanos.abs() as u64);
+            Message::Date(if nanos.is_negative() {
+                SystemTime::UNIX_EPOCH - time_since_epoch
+            } else {
+                SystemTime::UNIX_EPOCH + time_since_epoch
+            })
         }
         XpcType::Double => Message::Double(unsafe { xpc_double_get_value(xpc_object) }),
         XpcType::Int64 => Message::Int64(unsafe { xpc_int64_get_value(xpc_object) }),
