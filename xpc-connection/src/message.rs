@@ -217,11 +217,16 @@ pub fn message_to_xpc_object(message: Message) -> xpc_object_t {
         Message::Bool(bool) => unsafe { xpc_bool_create(bool) },
         Message::Client(client) => client.connection as xpc_object_t,
         Message::Date(date) => unsafe {
-            xpc_date_create(
+            xpc_date_create(if date >= SystemTime::UNIX_EPOCH {
                 date.duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
-                    .as_nanos() as i64,
-            )
+                    .as_nanos() as i64
+            } else {
+                -(SystemTime::UNIX_EPOCH
+                    .duration_since(date)
+                    .unwrap()
+                    .as_nanos() as i64)
+            })
         },
         Message::Double(double) => unsafe { xpc_double_create(double) },
         Message::Fd(fd) => unsafe { xpc_fd_create(fd) },
