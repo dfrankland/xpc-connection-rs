@@ -29,21 +29,21 @@ serialized property lists for Mac OS. Read more at the
 ## Supported Data Types
 
 *   `array`: `Vec<Message>`
+*   `bool`: `bool`
 *   `data`: `Vec<u8>`
+*   `date`: `SystemTime`
 *   `dictionary`: `HashMap<String, Message>`
+*   `double`: `f64`
 *   `error`: `MessageError`
 *   `fd`: `RawFd`
 *   `int64`: `i64`
 *   `string`: `String`
 *   `uint64`: `u64`
 *   `uuid`: `Vec<u8>`
+*   `null`
 
 ## Yet to Be Supported Data Types
 
 *   `activity`
-*   `bool`
-*   `date`
-*   `double`
 *   `endpoint`
-*   `null`
 *   `shmem`
