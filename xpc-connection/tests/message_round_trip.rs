@@ -5,7 +5,7 @@ use std::{
     ffi::CString,
     fs::File,
     os::unix::prelude::{FromRawFd, IntoRawFd, MetadataExt},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use xpc_connection::{Message, XpcClient};
 
@@ -325,12 +325,39 @@ fn send_and_receive_date() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_negative_date() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = SystemTime::UNIX_EPOCH - Duration::from_secs(90);
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Date(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Date(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
 fn send_and_receive_null() -> Result<(), Box<dyn Error>> {
     let mach_port_name = CString::new("com.example.echo")?;
     let mut con = XpcClient::connect(mach_port_name);
 
     let key = CString::new("K")?;
-    let value = SystemTime::now();
 
     let mut output = HashMap::new();
     output.insert(key.clone(), Message::Null);
