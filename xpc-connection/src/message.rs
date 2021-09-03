@@ -93,7 +93,7 @@ unsafe fn copy_raw_to_vec(ptr: *const u8, length: usize) -> Vec<u8> {
     vec
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Message {
     Bool(bool),
     Client(XpcClient),
@@ -112,7 +112,7 @@ pub enum Message {
     Null,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MessageError {
     /// The connection was interrupted, but is still usable. Clients should
     /// send their previous message again.
