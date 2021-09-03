@@ -5,6 +5,7 @@ use std::{
     ffi::CString,
     fs::File,
     os::unix::prelude::{FromRawFd, IntoRawFd, MetadataExt},
+    time::{Duration, SystemTime},
 };
 use xpc_connection::{Message, XpcClient};
 
@@ -229,6 +230,144 @@ fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
         if let Some(Message::Fd(v)) = input {
             let new = unsafe { File::from_raw_fd(*v) };
             assert_eq!(original_inode, new.metadata()?.ino());
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_double() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = 1.23456789_f64;
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Double(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Double(v)) = input {
+            assert!((*v - value).abs() < std::f64::EPSILON);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_bool() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = true;
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Bool(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Bool(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_date() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = SystemTime::now();
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Date(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Date(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_negative_date() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+    let value = SystemTime::UNIX_EPOCH - Duration::from_secs(90);
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Date(value));
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if let Some(Message::Date(v)) = input {
+            assert_eq!(*v, value);
+            return Ok(());
+        }
+
+        panic!("Received unexpected value: {:?}", input);
+    }
+
+    panic!("Didn't receive the container dictionary: {:?}", message);
+}
+
+#[test]
+#[ignore = "This test requires the echo server to be running"]
+fn send_and_receive_null() -> Result<(), Box<dyn Error>> {
+    let mach_port_name = CString::new("com.example.echo")?;
+    let mut con = XpcClient::connect(mach_port_name);
+
+    let key = CString::new("K")?;
+
+    let mut output = HashMap::new();
+    output.insert(key.clone(), Message::Null);
+
+    con.send_message(Message::Dictionary(output));
+
+    let message = block_on(con.next());
+    if let Some(Message::Dictionary(d)) = message {
+        let input = d.get(&key);
+        if matches!(input, Some(Message::Null)) {
             return Ok(());
         }
 

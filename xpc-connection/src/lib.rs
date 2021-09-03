@@ -59,6 +59,12 @@ pub struct XpcListener {
     sender: UnboundedSender<XpcClient>,
 }
 
+impl PartialEq for XpcListener {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.connection, other.connection)
+    }
+}
+
 impl Drop for XpcListener {
     fn drop(&mut self) {
         unsafe {
@@ -126,6 +132,12 @@ pub struct XpcClient {
 }
 
 unsafe impl Send for XpcClient {}
+
+impl PartialEq for XpcClient {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.connection, other.connection)
+    }
+}
 
 impl Drop for XpcClient {
     fn drop(&mut self) {
