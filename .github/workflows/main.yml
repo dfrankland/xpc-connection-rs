@@ -11,14 +11,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-10.15, macos-11.0 ]
+        os: [ macos-11, macos-12, macos-13 ]
         rust: [ nightly, stable ]
 
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Install stable toolchain
+      - name: Install the toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Install stable toolchain
+      - name: Install the stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
