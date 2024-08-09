@@ -1,8 +1,8 @@
 [package]
 authors = ["Dylan Frankland <github@frankland.io>"]
 name = "xpc-connection"
-version = "0.2.3"
-edition = "2018"
+version = "0.3.0"
+edition = "2021"
 license = "MIT"
 description = "XPC connection bindings for Rust"
 homepage = "https://github.com/dfrankland/xpc-connection-rs"

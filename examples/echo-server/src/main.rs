@@ -1,7 +1,7 @@
 use core_foundation::{base::TCFType, data::CFData};
 use futures::stream::StreamExt;
 use security_framework::os::macos::code_signing::{Flags, GuestAttributes, SecCode};
-use std::{error::Error, ffi::CString};
+use std::ffi::CString;
 use xpc_connection::{Message, MessageError, XpcClient, XpcListener};
 
 fn get_code_object_for_client(client: &XpcClient) -> SecCode {
@@ -28,30 +28,8 @@ fn validate_client_by_code_signing_requirement(client: &XpcClient) -> bool {
     false
 }
 
-fn validate_client_by_path(client: &XpcClient) -> bool {
-    if get_code_object_for_client(client)
-        .path(Flags::NONE)
-        .unwrap()
-        // It'd be better to use to_path
-        .get_string()
-        .to_string()
-        // This is insecure, it's just so the tests can be run from anywhere
-        .contains("message_round_trip")
-    {
-        println!("The client was validated using its path");
-        return true;
-    }
-
-    println!("The client's path doesn't contain 'message_round_trip'");
-    false
-}
-
 async fn handle_client(mut client: XpcClient) {
     println!("New connection");
-
-    if !validate_client_by_path(&client) {
-        return;
-    }
 
     loop {
         match client.next().await {
@@ -72,13 +50,16 @@ async fn handle_client(mut client: XpcClient) {
 }
 
 #[tokio::main(flavor = "multi_thread")]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
+async fn main() {
+    let mach_port_name = CString::new(
+        std::env::args()
+            .nth(1)
+            .expect("Usage: echo-server <mach port name>")
+            .as_str(),
+    )
+    .expect("Failed to convert the mach port name to a CString");
 
-    println!(
-        "Waiting for new connections on {:?}",
-        mach_port_name.to_string_lossy()
-    );
+    println!("Waiting for new connections on {mach_port_name:?}",);
 
     let mut listener = XpcListener::listen(&mach_port_name);
 
@@ -87,6 +68,4 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     println!("Server is shutting down");
-
-    Ok(())
 }

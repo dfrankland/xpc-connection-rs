@@ -3,17 +3,22 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.example.echo</string>
+	<string>echo-agent</string>
 	<key>MachServices</key>
 	<dict>
-		<key>com.example.echo</key>
+		<key>echo-agent</key>
 		<true/>
 	</dict>
 	<key>Program</key>
-	<string>/Library/PrivilegedHelperTools/com.example.echo</string>
+	<string>/usr/local/bin/echo-agent</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/local/bin/echo-agent</string>
+		<string>echo-agent</string>
+	</array>
 	<key>StandardOutPath</key>
-	<string>/var/log/com.example.echo.log</string>
+	<string>/tmp/echo-agent.log</string>
 	<key>StandardErrorPath</key>
-	<string>/var/log/com.example.echo.log</string>
+	<string>/tmp/echo-agent.log</string>
 </dict>
 </plist>

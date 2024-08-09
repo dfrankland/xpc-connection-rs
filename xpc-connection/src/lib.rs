@@ -201,9 +201,33 @@ impl XpcClient {
     }
 
     /// The connection isn't established until the first call to `send_message`.
+    ///
+    /// This is an alias for [`XpcClient::connect_privileged`].
+    #[deprecated(
+        since = "0.3.0",
+        note = "Use connect_privileged or connect_unprivileged"
+    )]
     pub fn connect(name: impl AsRef<CStr>) -> Self {
+        Self::connect_privileged(name)
+    }
+
+    /// The connection isn't established until the first call to `send_message`.
+    ///
+    /// Connects to a privileged mach port, i.e. a launch daemon.
+    pub fn connect_privileged(name: impl AsRef<CStr>) -> Self {
+        Self::connect_with_flags(name, XPC_CONNECTION_MACH_SERVICE_PRIVILEGED as u64)
+    }
+
+    /// The connection isn't established until the first call to `send_message`.
+    ///
+    /// Connects to an unprivileged mach port, i.e. a launch agent.
+    pub fn connect_unprivileged(name: impl AsRef<CStr>) -> Self {
+        Self::connect_with_flags(name, 0)
+    }
+
+    /// The connection isn't established until the first call to `send_message`.
+    fn connect_with_flags(name: impl AsRef<CStr>, flags: u64) -> Self {
         let name = name.as_ref();
-        let flags = XPC_CONNECTION_MACH_SERVICE_PRIVILEGED as u64;
         let connection = unsafe {
             xpc_connection_create_mach_service(name.as_ptr(), std::ptr::null_mut(), flags)
         };
@@ -247,15 +271,14 @@ impl XpcClient {
 mod tests {
     use super::*;
     use futures::{executor::block_on, StreamExt};
-    use std::{collections::HashMap, ffi::CString};
+    use std::collections::HashMap;
     use xpc_connection_sys::xpc_connection_cancel;
 
     // This also tests that the event handler block is only freed once, as a
     // double free is possible if the block isn't copied on to the heap.
     #[test]
     fn event_handler_receives_error_on_close() {
-        let mach_port_name = CString::new("com.apple.blued").unwrap();
-        let mut client = XpcClient::connect(&mach_port_name);
+        let mut client = XpcClient::connect_privileged(c"com.apple.blued");
 
         // Cancelling the connection will cause the event handler to be called
         // with an error message. This will happen under normal circumstances,
@@ -268,21 +291,20 @@ mod tests {
     }
 
     #[test]
-    fn stream_closed_on_drop() -> Result<(), Box<dyn std::error::Error>> {
-        let mach_port_name = CString::new("com.apple.blued")?;
-        let mut client = XpcClient::connect(&mach_port_name);
+    fn stream_closed_on_drop() {
+        let mut client = XpcClient::connect_privileged(c"com.apple.blued");
 
         let message = Message::Dictionary({
             let mut dictionary = HashMap::new();
-            dictionary.insert(CString::new("kCBMsgId")?, Message::Int64(1));
+            dictionary.insert(c"kCBMsgId".to_owned(), Message::Int64(1));
             dictionary.insert(
-                CString::new("kCBMsgArgs")?,
+                c"kCBMsgArgs".to_owned(),
                 Message::Dictionary({
                     let mut temp = HashMap::new();
-                    temp.insert(CString::new("kCBMsgArgAlert")?, Message::Int64(1));
+                    temp.insert(c"kCBMsgArgAlert".to_owned(), Message::Int64(1));
                     temp.insert(
-                        CString::new("kCBMsgArgName")?,
-                        Message::String(CString::new("rust")?),
+                        c"kCBMsgArgName".to_owned(),
+                        Message::String(c"rust".to_owned()),
                     );
                     temp
                 }),
@@ -312,7 +334,7 @@ mod tests {
                     // from blued before the connection is cancelled, but it's
                     // safe to say it should be less than 5.
                     assert!(count < 5);
-                    return Ok(());
+                    return;
                 }
             }
         }

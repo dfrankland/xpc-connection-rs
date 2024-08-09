@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>echo-daemon</string>
+	<key>MachServices</key>
+	<dict>
+		<key>echo-daemon</key>
+		<true/>
+	</dict>
+	<key>Program</key>
+	<string>/Library/PrivilegedHelperTools/echo-daemon</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/local/bin/echo-daemon</string>
+		<string>echo-daemon</string>
+	</array>
+	<key>StandardOutPath</key>
+	<string>/tmp/echo-daemon.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/echo-daemon.log</string>
+</dict>
+</plist>

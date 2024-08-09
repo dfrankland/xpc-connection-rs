@@ -2,7 +2,6 @@ use futures::{executor::block_on, StreamExt};
 use std::{
     collections::HashMap,
     error::Error,
-    ffi::CString,
     fs::File,
     os::unix::prelude::{FromRawFd, IntoRawFd, MetadataExt},
     time::{Duration, SystemTime},
@@ -11,12 +10,11 @@ use xpc_connection::{Message, XpcClient};
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_int64() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_int64() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
     let mut output = HashMap::new();
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     output.insert(key.clone(), Message::Int64(1));
     con.send_message(Message::Dictionary(output));
 
@@ -24,7 +22,7 @@ fn send_and_receive_int64() -> Result<(), Box<dyn Error>> {
     if let Some(Message::Dictionary(d)) = message {
         let input = d.get(&key);
         if let Some(Message::Int64(1)) = input {
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -35,13 +33,12 @@ fn send_and_receive_int64() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 #[ignore = "This test requires the echo server to be running"]
-async fn send_and_receive_string() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+async fn send_and_receive_string() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
     let mut output = HashMap::new();
-    let key = CString::new("K")?;
-    let value = CString::new("V")?;
+    let key = c"K".to_owned();
+    let value = c"V".to_owned();
     output.insert(key.clone(), Message::String(value.clone()));
 
     con.send_message(Message::Dictionary(output));
@@ -51,7 +48,7 @@ async fn send_and_receive_string() -> Result<(), Box<dyn Error>> {
             let input = d.get(&key);
             if let Some(Message::String(s)) = input {
                 assert_eq!(s, &value);
-                return Ok(());
+                return;
             }
             panic!("Received unexpected value: {:?}", input);
         }
@@ -62,13 +59,12 @@ async fn send_and_receive_string() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_dictionary() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_dictionary() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
     let mut output = HashMap::new();
-    let outer_key = CString::new("O")?;
-    let inner_key = CString::new("I")?;
+    let outer_key = c"O".to_owned();
+    let inner_key = c"I".to_owned();
     output.insert(
         outer_key.clone(),
         Message::Dictionary({
@@ -85,7 +81,7 @@ fn send_and_receive_dictionary() -> Result<(), Box<dyn Error>> {
         let inner_dictionary = outer_hashmap.get(&outer_key);
         if let Some(Message::Dictionary(inner_hashmap)) = inner_dictionary {
             if let Some(Message::Int64(1)) = inner_hashmap.get(&inner_key) {
-                return Ok(());
+                return;
             }
 
             panic!("Received unexpected value: {:?}", inner_hashmap);
@@ -99,12 +95,11 @@ fn send_and_receive_dictionary() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_array() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_array() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
     let mut output = HashMap::new();
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     output.insert(key.clone(), Message::Array(vec![Message::Int64(1)]));
 
     con.send_message(Message::Dictionary(output));
@@ -114,7 +109,7 @@ fn send_and_receive_array() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Array(a)) = input {
             if let Message::Int64(1) = a[0] {
-                return Ok(());
+                return;
             }
 
             panic!("Received unexpected value: {:?}", a);
@@ -128,11 +123,10 @@ fn send_and_receive_array() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_data() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_data() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = vec![0, 1];
     let mut output = HashMap::new();
     output.insert(key.clone(), Message::Data(value.clone()));
@@ -144,7 +138,7 @@ fn send_and_receive_data() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Data(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -155,11 +149,10 @@ fn send_and_receive_data() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_uint64() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_uint64() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = 0x2d13772f7f30cc5d_u64;
 
     let mut output = HashMap::new();
@@ -172,7 +165,7 @@ fn send_and_receive_uint64() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Uint64(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -183,11 +176,10 @@ fn send_and_receive_uint64() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_uuid() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
     let mut output = HashMap::new();
@@ -200,7 +192,7 @@ fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Uuid(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -212,10 +204,9 @@ fn send_and_receive_uuid() -> Result<(), Box<dyn Error>> {
 #[test]
 #[ignore = "This test requires the echo server to be running"]
 fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let original = File::create("/tmp/a")?;
     let original_inode = original.metadata()?.ino();
 
@@ -241,11 +232,10 @@ fn send_and_receive_fd() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_double() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_double() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = 1.23456789_f64;
 
     let mut output = HashMap::new();
@@ -258,7 +248,7 @@ fn send_and_receive_double() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Double(v)) = input {
             assert!((*v - value).abs() < std::f64::EPSILON);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -269,11 +259,10 @@ fn send_and_receive_double() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_bool() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_bool() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = true;
 
     let mut output = HashMap::new();
@@ -286,7 +275,7 @@ fn send_and_receive_bool() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Bool(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -297,11 +286,10 @@ fn send_and_receive_bool() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_date() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_date() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = SystemTime::now();
 
     let mut output = HashMap::new();
@@ -314,7 +302,7 @@ fn send_and_receive_date() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Date(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -325,11 +313,10 @@ fn send_and_receive_date() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_negative_date() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_negative_date() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = SystemTime::UNIX_EPOCH - Duration::from_secs(90);
 
     let mut output = HashMap::new();
@@ -342,7 +329,7 @@ fn send_and_receive_negative_date() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Date(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -353,11 +340,10 @@ fn send_and_receive_negative_date() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn send_and_receive_null() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn send_and_receive_null() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
 
     let mut output = HashMap::new();
     output.insert(key.clone(), Message::Null);
@@ -368,7 +354,7 @@ fn send_and_receive_null() -> Result<(), Box<dyn Error>> {
     if let Some(Message::Dictionary(d)) = message {
         let input = d.get(&key);
         if matches!(input, Some(Message::Null)) {
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
@@ -379,11 +365,10 @@ fn send_and_receive_null() -> Result<(), Box<dyn Error>> {
 
 #[test]
 #[ignore = "This test requires the echo server to be running"]
-fn connect_and_disconnect() -> Result<(), Box<dyn Error>> {
-    let mach_port_name = CString::new("com.example.echo")?;
-    let mut con = XpcClient::connect(mach_port_name);
+fn connect_and_disconnect() {
+    let mut con = XpcClient::connect_privileged(c"echo-daemon");
 
-    let key = CString::new("K")?;
+    let key = c"K".to_owned();
     let value = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
     let mut output = HashMap::new();
@@ -396,7 +381,7 @@ fn connect_and_disconnect() -> Result<(), Box<dyn Error>> {
         let input = d.get(&key);
         if let Some(Message::Uuid(v)) = input {
             assert_eq!(*v, value);
-            return Ok(());
+            return;
         }
 
         panic!("Received unexpected value: {:?}", input);
